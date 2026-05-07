@@ -4,6 +4,9 @@ function(walqt_add_test NAME)
     add_test(NAME ${NAME} COMMAND ${NAME})
 endfunction()
 
+add_compile_definitions(WALQT_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
 walqt_add_test(test_socket_path)
 walqt_add_test(test_mime)
 walqt_add_test(test_http_parser)
+walqt_add_test(test_target_resolver)

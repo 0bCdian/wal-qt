@@ -19,3 +19,7 @@ target_sources(wal_qt_lib PRIVATE
     http/http_server.h
     http/http_server.cpp
 )
+
+target_sources(wal_qt_lib PRIVATE
+    wallpaper/target_resolver.cpp
+)

@@ -1,0 +1,10 @@
+{
+  "entry": "index.html",
+  "capabilities": {
+    "network": true,
+    "pointer_interactive": false,
+    "audio_reactive": false,
+    "autoplay": true
+  },
+  "wallpaper_config": { "color": "#fff" }
+}
