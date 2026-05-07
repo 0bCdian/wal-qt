@@ -5,3 +5,4 @@ function(walqt_add_test NAME)
 endfunction()
 
 walqt_add_test(test_socket_path)
+walqt_add_test(test_mime)

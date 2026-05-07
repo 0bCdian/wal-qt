@@ -6,3 +6,7 @@ target_sources(wal_qt_lib PRIVATE
 target_sources(wal_qt_lib PRIVATE
     util/socket_path.cpp
 )
+
+target_sources(wal_qt_lib PRIVATE
+    util/mime.cpp
+)
