@@ -1,0 +1,9 @@
+build/
+build-*/
+.cache/
+compile_commands.json
+renderer/node_modules/
+renderer/dist/
+*.qrc.depends
+*.user
+.vscode/
