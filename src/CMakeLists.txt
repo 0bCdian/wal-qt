@@ -23,3 +23,8 @@ target_sources(wal_qt_lib PRIVATE
 target_sources(wal_qt_lib PRIVATE
     wallpaper/target_resolver.cpp
 )
+
+target_sources(wal_qt_lib PRIVATE
+    web/scheme_handler.h
+    web/scheme_handler.cpp
+)
