@@ -7,3 +7,16 @@ renderer/dist/
 *.qrc.depends
 *.user
 .vscode/
+.clangd/
+# in-tree build artifacts (when cmake is run without -B build)
+/CMakeCache.txt
+/CMakeFiles/
+/CTestTestfile.cmake
+/Makefile
+/cmake_install.cmake
+/Testing/
+/.qt/
+/wal-qt
+/wal-qt_autogen/
+/wal_qt_lib_autogen/
+/libwal_qt_lib.a

@@ -17,6 +17,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QRegion>
 
 #include <LayerShellQt/Window>
@@ -115,10 +116,15 @@ void walqt::WallpaperWindow::installBridgeAndUserScripts() {
 }
 
 void walqt::WallpaperWindow::loadRendererShell() {
-    // Task 21 wires the renderer dist as a Qt resource. For now this URL
-    // resolves only after Task 21 lands; if the resource is missing, Chromium
-    // shows a blank page — that's expected at this stage.
-    view_->load(QUrl(QStringLiteral("qrc:/renderer/index.html")));
+    // Task 21 wires the renderer dist as a Qt resource. If the resource is
+    // missing, Chromium shows a blank page — that's expected without a dist.
+    // Pass monitor_id as a query param so resolveMonitorId() in the renderer
+    // picks the right monitor index without needing Tauri context.
+    QUrl url(QStringLiteral("qrc:/renderer/index.html"));
+    QUrlQuery q;
+    q.addQueryItem(QStringLiteral("monitor"), QString::number(monitorIndex_));
+    url.setQuery(q);
+    view_->load(url);
 }
 
 QString walqt::WallpaperWindow::screenName() const { return screenName_; }
@@ -182,7 +188,19 @@ void walqt::WallpaperWindow::loadImageOrVideo(const QJsonObject &req) {
     pendingTarget_ = req.value("target").toString();
     pendingKind_   = req.value("kind").toString();
 
-    QString json = QString::fromUtf8(QJsonDocument(req).toJson(QJsonDocument::Compact));
+    // Inject required renderer fields: monitor_id and a monotonic request_id.
+    // The renderer's executeLoadRequest filters on monitor_id and routes accordingly.
+    static int sRequestId = 0;
+    QJsonObject enriched = req;
+    enriched["monitor_id"]  = monitorIndex_;
+    enriched["request_id"]  = ++sRequestId;
+    // Ensure required numeric fields have defaults so the renderer type is satisfied.
+    if (!enriched.contains("duration_ms"))
+        enriched["duration_ms"] = 300;
+    if (!enriched.contains("audio_enabled"))
+        enriched["audio_enabled"] = false;
+
+    QString json = QString::fromUtf8(QJsonDocument(enriched).toJson(QJsonDocument::Compact));
     emit bridge_->loadWallpaper(json);
 }
 
