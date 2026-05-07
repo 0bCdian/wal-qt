@@ -25,6 +25,21 @@ add_subdirectory(src)
 add_executable(wal-qt src/main.cpp)
 target_link_libraries(wal-qt PRIVATE wal_qt_lib)
 
+set(RENDERER_DIST ${CMAKE_SOURCE_DIR}/renderer/dist)
+set(RENDERER_QRC  ${CMAKE_BINARY_DIR}/renderer.qrc)
+
+add_custom_command(
+    OUTPUT  ${RENDERER_QRC}
+    COMMAND ${CMAKE_SOURCE_DIR}/scripts/gen-renderer-qrc.sh ${RENDERER_DIST} ${RENDERER_QRC}
+    DEPENDS ${RENDERER_DIST}/index.html
+    COMMENT "Generating renderer.qrc from ${RENDERER_DIST}"
+)
+add_custom_target(renderer_qrc DEPENDS ${RENDERER_QRC})
+
+set_source_files_properties(${RENDERER_QRC} PROPERTIES GENERATED 1)
+target_sources(wal-qt PRIVATE ${RENDERER_QRC})
+add_dependencies(wal-qt renderer_qrc)
+
 if(WAL_QT_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
