@@ -3,6 +3,8 @@
 #include <QWebEngineUrlScheme>
 #include <QWebEngineProfile>
 
+#include <LayerShellQt/Shell>
+
 #include "app/app.h"
 #include "app/single_instance.h"
 #include "web/scheme_handler.h"
@@ -15,6 +17,17 @@ int main(int argc, char *argv[]) {
     // Default to wayland platform if not already set externally.
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "wayland");
+
+    // Install LayerShellQt as the Wayland shell integration BEFORE QApplication.
+    // Without this, QWindow surfaces go through xdg-toplevel and ignore per-window
+    // LayerShellQt::Window::get() configuration — the windows appear as floating
+    // top-levels instead of background-layer surfaces. Marked deprecated upstream
+    // ("not needed since Qt 6.5") but still load-bearing in practice — the PoC at
+    // ../test-poc-qt/main.cpp confirms; without it wallpapers render as toplevels.
+    QT_WARNING_PUSH
+    QT_WARNING_DISABLE_DEPRECATED
+    LayerShellQt::Shell::useLayerShell();
+    QT_WARNING_POP
 
     // Register custom URL scheme BEFORE QApplication.
     QWebEngineUrlScheme scheme("waypaperhtml");
