@@ -52,3 +52,8 @@ target_sources(wal_qt_lib PRIVATE
     wallpaper/wallpaper_window.h
     wallpaper/wallpaper_window.cpp
 )
+
+target_sources(wal_qt_lib PRIVATE
+    wallpaper/wallpaper_controller.h
+    wallpaper/wallpaper_controller.cpp
+)
