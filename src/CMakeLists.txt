@@ -28,3 +28,8 @@ target_sources(wal_qt_lib PRIVATE
     web/scheme_handler.h
     web/scheme_handler.cpp
 )
+
+target_sources(wal_qt_lib PRIVATE
+    web/network_interceptor.h
+    web/network_interceptor.cpp
+)
