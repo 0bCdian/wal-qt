@@ -33,3 +33,8 @@ target_sources(wal_qt_lib PRIVATE
     web/network_interceptor.h
     web/network_interceptor.cpp
 )
+
+target_sources(wal_qt_lib PRIVATE
+    web/csp_injector.h
+    web/csp_injector.cpp
+)
