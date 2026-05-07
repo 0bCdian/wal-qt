@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "categories": {
+    "correctness": "warn",
+    "suspicious": "warn"
+  },
+  "rules": {
+    "no-console": "off"
+  },
+  "env": {
+    "builtin": true
+  },
+  "globals": {},
+  "ignorePatterns": ["dist/**", "node_modules/**"]
+}

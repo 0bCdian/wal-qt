@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>wal-qt renderer</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <main class="wallpaper-root">
+      <div class="wallpaper-parallax-surface">
+        <img
+          id="wallpaper-active"
+          class="wallpaper-layer is-active"
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScAAngAAAAASUVORK5CYII="
+          alt=""
+          draggable="false"
+        />
+        <img
+          id="wallpaper-incoming"
+          class="wallpaper-layer"
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScAAngAAAAASUVORK5CYII="
+          alt=""
+          draggable="false"
+        />
+        <canvas id="wallpaper-webgl" class="wallpaper-webgl-layer"></canvas>
+        <video
+          id="wallpaper-video-active"
+          class="wallpaper-video-layer video-active-layer"
+          playsinline
+          muted
+          preload="none"
+        ></video>
+        <video
+          id="wallpaper-video-incoming"
+          class="wallpaper-video-layer"
+          playsinline
+          muted
+          preload="none"
+        ></video>
+      </div>
+    </main>
+  </body>
+</html>

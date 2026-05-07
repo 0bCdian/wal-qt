@@ -1,0 +1,154 @@
+:root {
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  --wallpaper-base-color: #000000;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--wallpaper-base-color);
+  user-select: none !important;
+  cursor: default !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none;
+}
+
+.wallpaper-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--wallpaper-base-color);
+}
+
+/* Parallax surface: default full-bleed; when parallax is on, JS sets integer px width/height/left/top + translate(pan). */
+.wallpaper-parallax-surface {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.wallpaper-root.parallax-active .wallpaper-layer.is-active,
+.wallpaper-root.parallax-active .wallpaper-video-layer.video-active-layer {
+  will-change: opacity;
+  backface-visibility: hidden;
+}
+
+*,
+*::before,
+*::after {
+  user-select: none !important;
+  cursor: default !important;
+  -webkit-user-select: none !important;
+}
+
+.wallpaper-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Avoid `paint` containment — it can rasterize wallpaper into an intermediate at a fixed resolution. */
+  contain: layout size;
+  background: var(--wallpaper-base-color);
+  object-fit: cover;
+  image-rendering: auto;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+  /* Suppress WebKit's broken-image indicator when no src is set */
+  overflow: hidden;
+  color: transparent;
+  font-size: 0;
+  /* Promote to own composited layer — mitigates soft scaling when ancestors use transforms (Chromium/WebKit). */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.wallpaper-layer.is-active {
+  opacity: 1;
+  z-index: 1;
+}
+
+.wallpaper-webgl-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  /* Opacity-only promotion: avoid will-change: transform / translateZ on canvas — WebKit can
+     rasterize composited canvas at 1× on HiDPI. Opacity preserves DPR-correct sampling for fades. */
+  will-change: opacity;
+  /* Fade out over 80ms when hiding — gives the browser time to paint the
+     committed <img> layer before the canvas fully disappears. */
+  transition: opacity 80ms linear;
+}
+
+.wallpaper-webgl-layer.is-active {
+  opacity: 1;
+  transition: none;
+}
+
+.wallpaper-video-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+}
+
+.wallpaper-video-layer.video-active-layer {
+  opacity: 1;
+}
+
+.wallpaper-video-layer.video-loop-fade {
+  animation: wallpaper-video-fade var(--video-loop-fade-ms, 220ms) ease-out;
+}
+
+@keyframes wallpaper-video-fade {
+  from {
+    filter: brightness(0.88);
+  }
+  to {
+    filter: brightness(1);
+  }
+}
+
+.wallpaper-root.video-active .wallpaper-video-layer {
+  opacity: 0;
+}
+
+.wallpaper-root.video-active .wallpaper-video-layer.video-active-layer {
+  opacity: 1;
+  z-index: 4;
+}
+
+/* WebGL transition canvas (z-index 3) must not sit above or obscure decoded video frames. */
+.wallpaper-root.video-active .wallpaper-webgl-layer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.wallpaper-root.video-active .wallpaper-layer {
+  opacity: 0;
+}
