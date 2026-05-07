@@ -38,3 +38,8 @@ target_sources(wal_qt_lib PRIVATE
     web/csp_injector.h
     web/csp_injector.cpp
 )
+
+target_sources(wal_qt_lib PRIVATE
+    wallpaper/wallpaper_bridge.h
+    wallpaper/wallpaper_bridge.cpp
+)
