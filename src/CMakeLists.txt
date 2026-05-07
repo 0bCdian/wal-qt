@@ -10,3 +10,7 @@ target_sources(wal_qt_lib PRIVATE
 target_sources(wal_qt_lib PRIVATE
     util/mime.cpp
 )
+
+target_sources(wal_qt_lib PRIVATE
+    http/http_parser.cpp
+)

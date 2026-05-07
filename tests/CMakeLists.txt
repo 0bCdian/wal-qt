@@ -6,3 +6,4 @@ endfunction()
 
 walqt_add_test(test_socket_path)
 walqt_add_test(test_mime)
+walqt_add_test(test_http_parser)
