@@ -1,5 +1,6 @@
 #include "wallpaper/wallpaper_window.h"
 #include "wallpaper/wallpaper_bridge.h"
+#include "wallpaper/load_request_merge.h"
 #include "wallpaper/target_resolver.h"
 #include "web/scheme_handler.h"
 #include "web/network_interceptor.h"
@@ -255,18 +256,20 @@ void walqt::WallpaperWindow::applyEffectiveNetworkPolicy() {
 void walqt::WallpaperWindow::loadContent(const QJsonObject &req,
                                          std::function<void(bool, QString)> done)
 {
+    const QJsonObject reqResolved = mergeLoadRequestTargetForScreen(req, screenName_);
+
     // Cancel any in-flight ack (the new request supersedes it).
     if (pendingDone_) {
         auto stale = std::move(pendingDone_);
         stale(false, QStringLiteral("superseded"));
     }
 
-    QString kind = req.value("kind").toString();
+    QString kind = reqResolved.value("kind").toString();
     if (kind == "web") {
-        loadWebPackage(req, std::move(done));
+        loadWebPackage(reqResolved, std::move(done));
     } else if (kind == "image" || kind == "video") {
         pendingDone_ = std::move(done);
-        loadImageOrVideo(req);
+        loadImageOrVideo(reqResolved);
     } else {
         if (done) done(false, QStringLiteral("unknown kind: ") + kind);
     }

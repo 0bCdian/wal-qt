@@ -59,6 +59,11 @@ target_sources(wal_qt_lib PRIVATE
 )
 
 target_sources(wal_qt_lib PRIVATE
+    wallpaper/load_request_merge.h
+    wallpaper/load_request_merge.cpp
+)
+
+target_sources(wal_qt_lib PRIVATE
     wallpaper/wallpaper_controller.h
     wallpaper/wallpaper_controller.cpp
 )
