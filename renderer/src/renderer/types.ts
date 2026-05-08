@@ -63,7 +63,9 @@ export type TransitionEngine =
   | "webgl"
   | "gsap"
   /** Web Animations opacity crossfade (preferred on Chromium/Qt WebEngine). */
-  | "waapi";
+  | "waapi"
+  /** CSS transition + transitionend path from {@link runFadeLayerCrossfade} fallback. */
+  | "css";
 
 /** Metadata recorded after a transition completes — renderer-local. */
 export type TransitionExecutionMeta = {

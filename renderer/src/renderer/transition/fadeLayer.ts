@@ -35,14 +35,14 @@ function waapiEasingFromBezier(cssCubicBezier: string): string {
 }
 
 /**
- * Dual &lt;img&gt; opacity crossfade. Prefers Web Animations API when available — reliable
- * `finished` timing and avoids `transitionend` quirks on Chromium. Falls back to the prior
- * CSS-transition + `transitionend` path elsewhere.
+ * Dual-layer opacity crossfade (same contract as &lt;img&gt; image↔image fade).
+ * Prefers Web Animations API when available — reliable `finished` timing and avoids
+ * `transitionend` quirks on Chromium. Falls back to CSS-transition + `transitionend` elsewhere.
  */
 export async function runFadeLayerCrossfade(
   intent: TransitionIntent,
-  incoming: HTMLImageElement,
-  outgoing: HTMLImageElement,
+  incoming: HTMLElement,
+  outgoing: HTMLElement,
 ): Promise<FadeCrossfadeBackend> {
   const [x1, y1, x2, y2] = intent.bezier;
   const durationMs = intent.durationMs;

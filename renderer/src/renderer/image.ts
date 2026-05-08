@@ -13,6 +13,7 @@ import {
 } from "./transition/effectCrop";
 import { resolveTransitionIntent, type TransitionIntent } from "./transition/intent";
 import { runFadeLayerCrossfade } from "./transition/fadeLayer";
+import { resolveOrthogonalFadeIntent } from "./transition/orthogonalFade";
 import type {
   ImageFitMode,
   ImageRenderingMode,
@@ -118,6 +119,17 @@ function clearLayerAnimationProps(layer: HTMLImageElement): void {
   layer.style.removeProperty("transition");
   layer.style.removeProperty("z-index");
   layer.style.removeProperty("will-change");
+}
+
+/** Clear inline animation props from any layer used in cross-kind fades (&lt;video&gt;, etc.). */
+function clearHTMLElementAnimationProps(el: HTMLElement): void {
+  gsap.killTweensOf(el);
+  el.style.removeProperty("transform");
+  el.style.removeProperty("filter");
+  el.style.removeProperty("opacity");
+  el.style.removeProperty("transition");
+  el.style.removeProperty("z-index");
+  el.style.removeProperty("will-change");
 }
 
 function normalizeTarget(target: string): string {
@@ -1944,6 +1956,62 @@ export async function runTransition(
       effect: intent.effect,
       duration_actual_ms: Math.round(performance.now() - startedAt),
       ...(domFallbackReason ? { fallback_reason: domFallbackReason } : {}),
+    },
+  };
+}
+
+/**
+ * Opacity fade from the active &lt;video&gt; to the incoming &lt;img&gt;.
+ * Caller resets video runtime, activates image mode, and commits media state after success.
+ */
+export async function runImageTransitionFromVideo(
+  req: LoadRequest,
+  checkNotStale?: LoadStaleCheck,
+): Promise<{ target: string; meta: TransitionExecutionMeta }> {
+  const resolved = resolveOrthogonalFadeIntent(req);
+  if (!resolved) {
+    throw new Error("runImageTransitionFromVideo: expected a non-none transition");
+  }
+  if (!dom.activeLayer || !dom.incomingLayer || !dom.videoActiveLayer) {
+    throw new Error("transition layers are missing in the DOM");
+  }
+
+  const startedAt = performance.now();
+  const normalizedTarget = normalizeTarget(req.target);
+  const imageFitMode = resolveImageFitMode(req);
+  const imageRendering = resolveImageRendering(req);
+  applyImagePresentationStyles(imageFitMode, imageRendering);
+
+  const { intent, coerced } = resolved;
+
+  killWallpaperAnimationTargets();
+  clearHTMLElementAnimationProps(dom.videoActiveLayer);
+  clearLayerAnimationProps(dom.activeLayer);
+  clearLayerAnimationProps(dom.incomingLayer);
+
+  checkNotStale?.();
+  resetIncomingLayerState();
+  revokeWallpaperImgBlobUrl(dom.incomingLayer);
+  dom.incomingLayer.src = normalizedTarget;
+  try {
+    await dom.incomingLayer.decode();
+  } catch {
+    /* same as runTransition */
+  }
+  checkNotStale?.();
+
+  const backend = await runFadeLayerCrossfade(intent, dom.incomingLayer, dom.videoActiveLayer);
+  clearHTMLElementAnimationProps(dom.videoActiveLayer);
+  commitFinalImage(normalizedTarget);
+  releaseWallpaperWebGlForIdle();
+
+  return {
+    target: normalizedTarget,
+    meta: {
+      engine: backend,
+      effect: "fade",
+      duration_actual_ms: Math.round(performance.now() - startedAt),
+      ...(coerced ? { fallback_reason: "orthogonal_fade_coerced" } : {}),
     },
   };
 }

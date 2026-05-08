@@ -4,6 +4,7 @@ import {
   applyHostImagePresentation,
   normalizeMediaTarget,
   releaseWallpaperWebGlForIdle,
+  runImageTransitionFromVideo,
   runTransition,
   type LoadStaleCheck,
 } from "./renderer/image";
@@ -83,11 +84,30 @@ async function runImageTransition(
   req: LoadRequest,
   checkNotStale?: LoadStaleCheck,
 ): Promise<TransitionExecutionMeta> {
-  const result = await runTransition(req, checkNotStale);
-  commitActiveMediaState("image", result.target, false, {
+  const presentation = {
     fitMode: req.image_fit_mode ?? "cover",
     rendering: req.image_rendering ?? "auto",
-  });
+  };
+
+  if (state.activeKind === "video") {
+    if (req.transition === "none") {
+      resetVideoRuntime();
+      activateImageMode();
+      const result = await runTransition(req, checkNotStale);
+      commitActiveMediaState("image", result.target, false, presentation);
+      return result.meta;
+    }
+    const result = await runImageTransitionFromVideo(req, checkNotStale);
+    resetVideoRuntime();
+    activateImageMode();
+    commitActiveMediaState("image", result.target, false, presentation);
+    return result.meta;
+  }
+
+  resetVideoRuntime();
+  activateImageMode();
+  const result = await runTransition(req, checkNotStale);
+  commitActiveMediaState("image", result.target, false, presentation);
   return result.meta;
 }
 
@@ -112,19 +132,7 @@ async function applyLoadRequest(
   if (req.kind === "video") {
     return runVideoLoad(req, checkNotStale);
   }
-  resetVideoRuntime();
-  activateImageMode();
-  const fromWebOrVideo = state.activeKind === "video" || state.activeKind === "web";
-  const imageReq: LoadRequest =
-    fromWebOrVideo && req.kind === "image"
-      ? {
-          ...req,
-          transition: "none",
-          duration_ms: 0,
-          transition_params: undefined,
-        }
-      : req;
-  return runImageTransition(imageReq, checkNotStale);
+  return runImageTransition(req, checkNotStale);
 }
 
 async function executeLoadRequest(req: LoadRequest) {
