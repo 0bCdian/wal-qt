@@ -6,13 +6,24 @@ The authoritative spec lives in the `wal-qt.md` document maintained alongside th
 
 ## Build
 
+Convenience (runs dependency checks, `npm ci` + renderer build, then CMake):
+
+```sh
+make build
+make test
+```
+
+Or manually:
+
 ```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-System packages (Arch): `qt6-webengine`, `qt6-webchannel`, `layer-shell-qt`, `cmake`. The renderer SPA must be built before the binary so its `dist/` is embedded as a Qt resource: `cd renderer && npm install && npm run build`.
+Install to `~/.local` (binary + `.desktop`): `make install`. System-wide: `sudo make install-system` (uses `PREFIX=/usr/local`). See `make help`.
+
+System packages (Arch): `qt6-webengine`, `qt6-webchannel`, `layer-shell-qt`, `pipewire`, `cmake`, `pkgconf`, `nodejs`. The renderer SPA must be built before the binary so its `dist/` is embedded as a Qt resource (`make renderer` or `cd renderer && npm ci && npm run build`).
 
 ## Using as a waypaper-engine backend
 
