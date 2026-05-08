@@ -5,6 +5,12 @@ import { logger } from "./logger";
 import { resolveAssetUrl } from "./urlUtils";
 import { logWebglWorkerCapabilityOnce } from "./webglWorkerProbe";
 import { dom, state } from "./state";
+import type { EffectCropUv } from "./transition/effectCrop";
+import {
+  identityEffectCropUv,
+  resolveLiveTransitionEffectCropUv,
+  wipeDomVectorScaleForCropDeg,
+} from "./transition/effectCrop";
 import { resolveTransitionIntent, type TransitionIntent } from "./transition/intent";
 import { runFadeLayerCrossfade } from "./transition/fadeLayer";
 import type {
@@ -92,7 +98,7 @@ function createIntentEase(intent: TransitionIntent, idSuffix: string): string {
 function wipeVectorPercent(
   angleDeg: number,
   outgoing: boolean,
-  magnitude = 1.05,
+  magnitude: number,
 ): { x: number; y: number } {
   const radians = (angleDeg * Math.PI) / 180;
   const directionX = Math.cos(radians);
@@ -363,6 +369,8 @@ type WebGlPresentationParams = {
   fromWasHandoff: boolean;
   fromNaturalCss: { w: number; h: number };
   toNaturalCss: { w: number; h: number };
+  /** Visible root∩canvas as normalized canvas UV bounds; remap effect geometry when parallax zooms. */
+  effectCropUv: EffectCropUv;
 };
 
 function bindWebGlPresentationUniforms(
@@ -428,6 +436,18 @@ function bindWebGlPresentationUniforms(
   if (uLb) gl.uniform3f(uLb, r, g, b);
   if (uFromNat) gl.uniform2f(uFromNat, fromNatBacking.x, fromNatBacking.y);
   if (uToNat) gl.uniform2f(uToNat, toNatBacking.x, toNatBacking.y);
+  const uCropRect = gl.getUniformLocation(program, "u_crop_uv_rect");
+  if (uCropRect) {
+    const e = params.effectCropUv;
+    gl.uniform4f(uCropRect, e.minU, e.minV, e.maxU, e.maxV);
+  }
+}
+
+function snapshotTransitionEffectCropUv(): EffectCropUv {
+  if (!dom.webglCanvas) {
+    return identityEffectCropUv();
+  }
+  return resolveLiveTransitionEffectCropUv(dom.webglCanvas, dom.rootEl);
 }
 
 /** Sharp backing for shader transition textures (`WAYPAPER_WEBGL_SCALE` not applied here). */
@@ -569,6 +589,7 @@ function runGsapLayerTransition(
   incoming: HTMLImageElement,
   outgoing: HTMLImageElement,
   easeSuffix: string,
+  effectCropUv: EffectCropUv,
 ): Promise<DomCompositorTransitionEngine> {
   const { effect } = intent;
   const guardMs = computeRendererGuardTimeoutMs(intent.durationMs);
@@ -597,8 +618,9 @@ function runGsapLayerTransition(
 
     switch (effect) {
       case "wipe": {
-        const inStart = wipeVectorPercent(intent.wipeAngleDeg, false, 1.05);
-        const outEnd = wipeVectorPercent(intent.wipeAngleDeg, true, 1.05);
+        const wipeMag = 1.05 * wipeDomVectorScaleForCropDeg(intent.wipeAngleDeg, effectCropUv);
+        const inStart = wipeVectorPercent(intent.wipeAngleDeg, false, wipeMag);
+        const outEnd = wipeVectorPercent(intent.wipeAngleDeg, true, wipeMag);
         const tl = gsap.timeline({ onComplete: done });
         tl.fromTo(
           incoming,
@@ -1046,6 +1068,21 @@ async function runWebGlTransition(
 // Fragment shaders: mediump for ALU; `v_uv` stays highp so object-fit UV math stays sharp at
 // large backing sizes (distinct from jagged wipe boundaries, which use fwidth AA).
 
+/**
+ * Visible root∩canvas mapped to normalized effect coordinates [0,1]² (parallax crop).
+ * Sampling still uses raw `v_uv`; wipe/grow/wave spatial logic uses cropEffectUv(v_uv).
+ */
+const WEBGL_CROP_EFFECT_UV_HELPERS = `
+uniform vec4 u_crop_uv_rect;
+highp vec2 cropEffectUv(highp vec2 uv) {
+  highp vec2 mn = u_crop_uv_rect.xy;
+  highp vec2 mx = u_crop_uv_rect.zw;
+  highp vec2 span = mx - mn;
+  if (span.x <= 1e-6 || span.y <= 1e-6) return uv;
+  return (uv - mn) / span;
+}
+`;
+
 /** Shared GLSL: CSS-aligned sampling for from/to layers (`u_*_object_fit` set from TS). */
 const WEBGL_OBJECT_FIT_HELPERS = `
 uniform float u_from_object_fit;
@@ -1135,9 +1172,11 @@ uniform vec2 u_from_size;
 uniform vec2 u_to_size;
 uniform vec2 u_canvas_size;
 varying highp vec2 v_uv;
+${WEBGL_CROP_EFFECT_UV_HELPERS}
 ${WEBGL_OBJECT_FIT_HELPERS}
 void main() {
-  float proj = dot(v_uv, u_direction);
+  highp vec2 ef = cropEffectUv(v_uv);
+  float proj = dot(ef, u_direction);
   float threshold = mix(u_min_proj, u_max_proj, u_progress);
   vec4 fromColor = sampleFrom(v_uv);
   vec4 toColor = sampleTo(v_uv);
@@ -1159,6 +1198,7 @@ uniform vec2 u_from_size;
 uniform vec2 u_to_size;
 uniform vec2 u_canvas_size;
 varying highp vec2 v_uv;
+${WEBGL_CROP_EFFECT_UV_HELPERS}
 ${WEBGL_OBJECT_FIT_HELPERS}
 void main() {
   vec4 fromColor = sampleFrom(v_uv);
@@ -1171,7 +1211,8 @@ void main() {
     gl_FragColor = toColor;
     return;
   }
-  vec2 delta = v_uv - u_origin;
+  highp vec2 ef = cropEffectUv(v_uv);
+  vec2 delta = ef - u_origin;
   delta.x *= u_canvas_size.x / u_canvas_size.y;
   float dist = length(delta);
   float threshold = mix(u_min_dist, u_max_dist, u_progress);
@@ -1192,6 +1233,7 @@ uniform vec2 u_from_size;
 uniform vec2 u_to_size;
 uniform vec2 u_canvas_size;
 varying highp vec2 v_uv;
+${WEBGL_CROP_EFFECT_UV_HELPERS}
 ${WEBGL_OBJECT_FIT_HELPERS}
 void main() {
   vec4 fromColor = sampleFrom(v_uv);
@@ -1204,7 +1246,8 @@ void main() {
     gl_FragColor = toColor;
     return;
   }
-  vec2 delta = v_uv - u_origin;
+  highp vec2 ef = cropEffectUv(v_uv);
+  vec2 delta = ef - u_origin;
   delta.x *= u_canvas_size.x / u_canvas_size.y;
   float dist = length(delta);
   float threshold = mix(u_max_dist, u_min_dist, u_progress);
@@ -1228,10 +1271,12 @@ uniform vec2 u_from_size;
 uniform vec2 u_to_size;
 uniform vec2 u_canvas_size;
 varying highp vec2 v_uv;
+${WEBGL_CROP_EFFECT_UV_HELPERS}
 ${WEBGL_OBJECT_FIT_HELPERS}
 void main() {
-  float proj = dot(v_uv, u_direction);
-  float perp = dot(v_uv, u_perp);
+  highp vec2 ef = cropEffectUv(v_uv);
+  float proj = dot(ef, u_direction);
+  float perp = dot(ef, u_perp);
   float threshold = mix(u_min_proj, u_max_proj, u_progress);
   float waveOffset = sin(perp * u_wave_frequency * 6.28318530718) * u_wave_amplitude;
   float feather = 8.5 / min(u_canvas_size.x, u_canvas_size.y);
@@ -1256,9 +1301,11 @@ uniform vec2 u_from_size;
 uniform vec2 u_to_size;
 uniform vec2 u_canvas_size;
 varying highp vec2 v_uv;
+${WEBGL_CROP_EFFECT_UV_HELPERS}
 ${WEBGL_OBJECT_FIT_HELPERS}
 void main() {
-  float proj = dot(v_uv, u_direction);
+  highp vec2 ef = cropEffectUv(v_uv);
+  float proj = dot(ef, u_direction);
   float threshold = mix(u_min_proj, u_max_proj, u_progress);
   vec4 fromColor = sampleFrom(v_uv);
   vec4 toColor = sampleTo(v_uv);
@@ -1282,6 +1329,7 @@ uniform vec2 u_from_size;
 uniform vec2 u_to_size;
 uniform vec2 u_canvas_size;
 varying highp vec2 v_uv;
+${WEBGL_CROP_EFFECT_UV_HELPERS}
 ${WEBGL_OBJECT_FIT_HELPERS}
 void main() {
   vec4 fromColor = sampleFrom(v_uv);
@@ -1294,7 +1342,8 @@ void main() {
     gl_FragColor = toColor;
     return;
   }
-  vec2 delta = v_uv - u_origin;
+  highp vec2 ef = cropEffectUv(v_uv);
+  vec2 delta = ef - u_origin;
   delta.x *= u_canvas_size.x / u_canvas_size.y;
   float dist = length(delta);
   float threshold = mix(u_min_dist, u_max_dist, u_progress);
@@ -1318,6 +1367,7 @@ uniform vec2 u_from_size;
 uniform vec2 u_to_size;
 uniform vec2 u_canvas_size;
 varying highp vec2 v_uv;
+${WEBGL_CROP_EFFECT_UV_HELPERS}
 ${WEBGL_OBJECT_FIT_HELPERS}
 void main() {
   vec4 fromColor = sampleFrom(v_uv);
@@ -1330,7 +1380,8 @@ void main() {
     gl_FragColor = toColor;
     return;
   }
-  vec2 delta = v_uv - u_origin;
+  highp vec2 ef = cropEffectUv(v_uv);
+  vec2 delta = ef - u_origin;
   delta.x *= u_canvas_size.x / u_canvas_size.y;
   float dist = length(delta);
   float threshold = mix(u_max_dist, u_min_dist, u_progress);
@@ -1357,10 +1408,12 @@ uniform vec2 u_from_size;
 uniform vec2 u_to_size;
 uniform vec2 u_canvas_size;
 varying highp vec2 v_uv;
+${WEBGL_CROP_EFFECT_UV_HELPERS}
 ${WEBGL_OBJECT_FIT_HELPERS}
 void main() {
-  float proj = dot(v_uv, u_direction);
-  float perp = dot(v_uv, u_perp);
+  highp vec2 ef = cropEffectUv(v_uv);
+  float proj = dot(ef, u_direction);
+  float perp = dot(ef, u_perp);
   float threshold = mix(u_min_proj, u_max_proj, u_progress);
   float waveOffset = sin(perp * u_wave_frequency * 6.28318530718) * u_wave_amplitude;
   float edge = proj - threshold - waveOffset;
@@ -1658,6 +1711,9 @@ export async function runTransition(
   perfMeasure("incoming-img-decode", decStart, decEnd);
   checkNotStale?.();
 
+  /** Frozen at transition start: visible root∩canvas in normalized canvas UV space. */
+  const transitionEffectCropUv = snapshotTransitionEffectCropUv();
+
   // WebGL sampling follows the active object-fit; `image-rendering` applies to <img> after commit.
   const wantsWebglTransition =
     intent.effect === "fade" ||
@@ -1738,6 +1794,7 @@ export async function runTransition(
           w: Math.max(1, dom.incomingLayer?.naturalWidth ?? toDims.width),
           h: Math.max(1, dom.incomingLayer?.naturalHeight ?? toDims.height),
         },
+        effectCropUv: transitionEffectCropUv,
       };
       await runWebGlTransition(
         intent,
@@ -1827,6 +1884,7 @@ export async function runTransition(
           dom.incomingLayer,
           dom.activeLayer,
           `fb_${easeTag}`,
+          transitionEffectCropUv,
         );
       } catch (fallbackErr) {
         const fb = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
@@ -1869,6 +1927,7 @@ export async function runTransition(
       dom.incomingLayer,
       dom.activeLayer,
       `img_${easeTag}`,
+      transitionEffectCropUv,
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
