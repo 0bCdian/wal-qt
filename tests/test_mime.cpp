@@ -9,6 +9,7 @@ private slots:
         QTest::newRow("css")  << "a/b.css"<< QByteArray("text/css");
         QTest::newRow("json") << "m.json" << QByteArray("application/json");
         QTest::newRow("png")  << "i.png"  << QByteArray("image/png");
+        QTest::newRow("webp") << "i.webp"<< QByteArray("image/webp");
         QTest::newRow("jpg")  << "i.jpg"  << QByteArray("image/jpeg");
         QTest::newRow("jpeg") << "i.jpeg" << QByteArray("image/jpeg");
         QTest::newRow("mp4")  << "v.mp4"  << QByteArray("video/mp4");

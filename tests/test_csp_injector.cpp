@@ -4,8 +4,12 @@
 class TestCsp : public QObject {
     Q_OBJECT
 private slots:
-    void policyContainsConnectNone() {
-        QVERIFY(walqt::defaultCspPolicy().contains("connect-src 'none'"));
+    void policyAllowsLocalSchemesAndLocksFrames() {
+        const QString p = walqt::defaultCspPolicy();
+        QVERIFY(p.contains("walfile:"));
+        QVERIFY(p.contains("connect-src"));
+        QVERIFY(p.contains("frame-src 'none'"));
+        QVERIFY(!p.contains("connect-src 'none'"));
     }
     void scriptIsDocumentCreationMainWorld() {
         auto s = walqt::buildCspInjectionScript("default-src 'none'");

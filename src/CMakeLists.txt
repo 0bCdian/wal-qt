@@ -54,6 +54,11 @@ target_sources(wal_qt_lib PRIVATE
 )
 
 target_sources(wal_qt_lib PRIVATE
+    wallpaper/monitor_selector.h
+    wallpaper/monitor_selector.cpp
+)
+
+target_sources(wal_qt_lib PRIVATE
     wallpaper/wallpaper_controller.h
     wallpaper/wallpaper_controller.cpp
 )
@@ -63,6 +68,16 @@ target_sources(wal_qt_lib PRIVATE
 )
 
 target_sources(wal_qt_lib PRIVATE
+    web/local_file_scheme_handler.h
+    web/local_file_scheme_handler.cpp
+)
+
+target_sources(wal_qt_lib PRIVATE
     app/app.h
     app/app.cpp
+)
+
+target_sources(wal_qt_lib PRIVATE
+    audio/audio_capture.h
+    audio/audio_capture.cpp
 )

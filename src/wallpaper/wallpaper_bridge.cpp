@@ -13,6 +13,10 @@ void walqt::WallpaperBridge::transitionResult(const QString &json) {
     emit transitionAck(monitorId_, ok, err);
 }
 
+void walqt::WallpaperBridge::rendererReady() {
+    emit rendererConnected(monitorId_);
+}
+
 void walqt::WallpaperBridge::log(const QString &level, const QString &message) {
     QString tag = QStringLiteral("[walBridge:m%1] ").arg(monitorId_);
     QString lvl = level.toLower();

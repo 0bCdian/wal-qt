@@ -23,6 +23,7 @@ WebManifest parseManifest(const QString &manifestPath)
     m.network           = caps["network"].toBool(false);
     m.pointerInteractive = caps["pointer_interactive"].toBool(false);
     m.audioReactive     = caps["audio_reactive"].toBool(false);
+    m.keyboard          = caps["keyboard"].toBool(false);
     m.autoplay          = caps["autoplay"].toBool(true);
 
     m.wallpaperConfig = obj["wallpaper_config"].toObject();

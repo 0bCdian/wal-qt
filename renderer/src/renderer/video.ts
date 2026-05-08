@@ -6,6 +6,14 @@ import { activateVideoMode, clearVideoLayer, commitActiveMediaState, dom } from 
 import type { LoadRequest, TransitionExecutionMeta } from "./types";
 import { installVideoLoopHandler } from "./videoLoop";
 
+function showVideoCover() {
+  dom.videoCoverEl?.classList.add("is-visible");
+}
+
+function hideVideoCover() {
+  dom.videoCoverEl?.classList.remove("is-visible");
+}
+
 const CANPLAY_TIMEOUT_MS = 300_000;
 
 function detachVideo(layer: HTMLVideoElement) {
@@ -105,6 +113,7 @@ export async function runVideoLoad(
 
   const src = resolveAssetUrl(req.target);
 
+  showVideoCover();
   prepareInactiveLayer(incomingLayer);
   incomingLayer.loop = true;
   incomingLayer.autoplay = true;
@@ -122,6 +131,7 @@ export async function runVideoLoad(
   const playingPromise = waitForPlaying(incomingLayer, CANPLAY_TIMEOUT_MS);
   await incomingLayer.play();
   await playingPromise;
+  hideVideoCover();
   getLoopController().start(src, incomingLayer);
   incomingLayer.classList.add("video-active-layer");
   activeLayer.classList.remove("video-active-layer");

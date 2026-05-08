@@ -2,7 +2,9 @@
 #include <QObject>
 #include <QMap>
 #include <QJsonObject>
-#include "http/http_server.h"   // for HttpRequest, HttpResponder
+#include <QVector>
+#include "http/http_server.h" // for HttpRequest, HttpResponder
+#include "wallpaper/monitor_selector.h"
 
 class QScreen;
 
@@ -10,6 +12,8 @@ namespace walqt {
 class WallpaperWindow;
 class WaypaperHtmlSchemeHandler;
 class NetworkInterceptor;
+class LocalFileSchemeHandler;
+class AudioCapture;
 
 class WallpaperController : public QObject {
     Q_OBJECT
@@ -40,14 +44,22 @@ private:
                const QJsonObject &body, HttpResponder respond);
 
     QJsonObject statusJson() const;
-    QList<WallpaperWindow*> resolveTargets(const QJsonObject &req) const;
 
     void handleLoad        (const QJsonObject &req, HttpResponder respond);
     void handleParallax    (const QJsonObject &req, HttpResponder respond);
     void handleParallaxMove(const QJsonObject &req, HttpResponder respond);
     void handleNetwork     (const QJsonObject &req, HttpResponder respond);
+    void handleImagePresentation(const QJsonObject &req, HttpResponder respond);
     void handleConfig      (const QJsonObject &req, HttpResponder respond);
     void handleCaps        (const QJsonObject &req, HttpResponder respond);
     void handlePlayback    (const QJsonObject &req, HttpResponder respond);
+
+    LocalFileSchemeHandler *localFileHandler_ = nullptr;
+    AudioCapture           *audioCap_         = nullptr;
+
+    void updateAudioCapture();
+
+private slots:
+    void onAudioFrame(QVector<float> bands, float rms, float peak);
 };
 }

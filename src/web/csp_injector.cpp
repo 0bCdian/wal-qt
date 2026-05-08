@@ -4,9 +4,9 @@
 
 QString walqt::defaultCspPolicy() {
     return QStringLiteral(
-        "default-src 'self' waypaperhtml: file: data: blob:; "
+        "default-src 'self' waypaperhtml: walfile: file: data: blob:; "
         "script-src 'self' 'unsafe-eval' waypaperhtml: file:; "
-        "connect-src 'none'; "
+        "connect-src 'self' waypaperhtml: walfile: file: data: blob:; "
         "frame-src 'none';");
 }
 
@@ -21,10 +21,20 @@ QWebEngineScript walqt::buildCspInjectionScript(const QString &cspPolicy) {
 
     QString js = QStringLiteral(R"js(
         (function() {
-            var m = document.createElement('meta');
-            m.httpEquiv = 'Content-Security-Policy';
-            m.content = %1;
-            (document.head || document.documentElement).appendChild(m);
+            function inject() {
+                try {
+                    var root = document.head || document.documentElement;
+                    if (!root) return;
+                    var m = document.createElement('meta');
+                    m.httpEquiv = 'Content-Security-Policy';
+                    m.content = %1;
+                    root.appendChild(m);
+                } catch (e) {}
+            }
+            if (document.readyState === 'loading')
+                document.addEventListener('DOMContentLoaded', inject);
+            else
+                inject();
         })();
     )js").arg(stringLiteral);
 

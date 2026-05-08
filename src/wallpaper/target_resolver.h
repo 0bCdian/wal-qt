@@ -7,6 +7,7 @@ struct WebManifest {
     bool network = false;
     bool pointerInteractive = false;
     bool audioReactive = false;
+    bool keyboard = false;
     bool autoplay = true;
     QJsonObject wallpaperConfig;
 };

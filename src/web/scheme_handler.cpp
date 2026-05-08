@@ -27,7 +27,15 @@ void walqt::WaypaperHtmlSchemeHandler::setPackageRoot(const QString &root)
 
 void walqt::WaypaperHtmlSchemeHandler::requestStarted(QWebEngineUrlRequestJob *job)
 {
-    QString resolved = resolveSchemePath(packageRoot_, job->requestUrl().path());
+    // QUrl::path() of waypaperhtml://pkg/foo/bar.js is "/foo/bar.js" — the leading slash
+    // is the URL path separator after the host, not a filesystem-absolute marker.
+    // resolveSchemePath() expects a package-relative path and rejects anything starting
+    // with '/' as an absolute-path traversal attempt; strip one leading slash here.
+    QString rawPath = job->requestUrl().path();
+    if (rawPath.startsWith('/'))
+        rawPath = rawPath.mid(1);
+
+    QString resolved = resolveSchemePath(packageRoot_, rawPath);
     if (resolved.isEmpty()) {
         job->fail(QWebEngineUrlRequestJob::RequestDenied);
         return;

@@ -6,6 +6,7 @@ QByteArray mimeForPath(const QString &path) {
     if (path.endsWith(".css"))  return "text/css";
     if (path.endsWith(".json")) return "application/json";
     if (path.endsWith(".png"))  return "image/png";
+    if (path.endsWith(".webp")) return "image/webp";
     if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
     if (path.endsWith(".mp4"))  return "video/mp4";
     if (path.endsWith(".webm")) return "video/webm";

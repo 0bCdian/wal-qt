@@ -1,41 +1,63 @@
 #include <QApplication>
 #include <QByteArray>
+#include <QFile>
 #include <QWebEngineUrlScheme>
-#include <QWebEngineProfile>
-
-#include <LayerShellQt/Shell>
 
 #include "app/app.h"
 #include "app/single_instance.h"
 #include "web/scheme_handler.h"
 #include "web/network_interceptor.h"
 
-int main(int argc, char *argv[]) {
-    // Chromium flags MUST be set before QApplication is constructed.
-    qputenv("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-accelerated-video-decode");
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+static void ensureFontconfigEnv()
+{
+    // WebEngine / Chromium loads fontconfig for web text. An empty or invalid
+    // FONTCONFIG_FILE yields: "Cannot load default config file: No such file: (null)"
+    // (common when a parent process exports FONTCONFIG_FILE="").
+    const QByteArray fc = qgetenv("FONTCONFIG_FILE");
+    if (qEnvironmentVariableIsSet("FONTCONFIG_FILE")) {
+        if (fc.trimmed().isEmpty() ||
+            !QFile::exists(QString::fromLocal8Bit(fc))) {
+            qunsetenv("FONTCONFIG_FILE");
+        }
+    }
+    if (qEnvironmentVariableIsEmpty("FONTCONFIG_FILE")) {
+        static const char *candidates[] = {
+            "/etc/fonts/fonts.conf",
+            "/usr/local/etc/fonts/fonts.conf",
+        };
+        for (const char *p : candidates) {
+            if (QFile::exists(QString::fromUtf8(p))) {
+                qputenv("FONTCONFIG_FILE", p);
+                break;
+            }
+        }
+    }
+    const QByteArray fcp = qgetenv("FONTCONFIG_PATH");
+    if (qEnvironmentVariableIsSet("FONTCONFIG_PATH") && fcp.trimmed().isEmpty())
+        qunsetenv("FONTCONFIG_PATH");
+}
+#endif
 
-    // Default to wayland platform if not already set externally.
+int main(int argc, char *argv[]) {
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "wayland");
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+    ensureFontconfigEnv();
+#endif
 
-    // Install LayerShellQt as the Wayland shell integration BEFORE QApplication.
-    // Without this, QWindow surfaces go through xdg-toplevel and ignore per-window
-    // LayerShellQt::Window::get() configuration — the windows appear as floating
-    // top-levels instead of background-layer surfaces. Marked deprecated upstream
-    // ("not needed since Qt 6.5") but still load-bearing in practice — the PoC at
-    // ../test-poc-qt/main.cpp confirms; without it wallpapers render as toplevels.
-    QT_WARNING_PUSH
-    QT_WARNING_DISABLE_DEPRECATED
-    LayerShellQt::Shell::useLayerShell();
-    QT_WARNING_POP
-
-    // Register custom URL scheme BEFORE QApplication.
     QWebEngineUrlScheme scheme("waypaperhtml");
     scheme.setFlags(QWebEngineUrlScheme::SecureScheme |
                     QWebEngineUrlScheme::LocalScheme |
                     QWebEngineUrlScheme::LocalAccessAllowed |
                     QWebEngineUrlScheme::CorsEnabled);
     QWebEngineUrlScheme::registerScheme(scheme);
+
+    QWebEngineUrlScheme walfile(QByteArrayLiteral("walfile"));
+    walfile.setFlags(QWebEngineUrlScheme::SecureScheme |
+                     QWebEngineUrlScheme::CorsEnabled |
+                     QWebEngineUrlScheme::FetchApiAllowed);
+    QWebEngineUrlScheme::registerScheme(walfile);
 
     QApplication app(argc, argv);
     app.setApplicationName("wal-qt");
@@ -48,12 +70,7 @@ int main(int argc, char *argv[]) {
     }
 
     auto *interceptor = new walqt::NetworkInterceptor(&app);
-    QWebEngineProfile::defaultProfile()->setUrlRequestInterceptor(interceptor);
-
     auto *schemeHandler = new walqt::WaypaperHtmlSchemeHandler(&app);
-    QWebEngineProfile::defaultProfile()
-        ->installUrlSchemeHandler("waypaperhtml", schemeHandler);
-
     walqt::App walapp(schemeHandler, interceptor);
     if (!walapp.start()) {
         qCritical("Failed to bind control socket");

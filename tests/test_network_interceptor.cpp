@@ -4,7 +4,7 @@ using namespace walqt;
 class TestInterceptor : public QObject { Q_OBJECT
 private slots:
     void allowsLocalSchemesAlways() {
-        for (const char *s : {"waypaperhtml","file","qrc","data","blob"})
+        for (const char *s : {"waypaperhtml","walfile","file","qrc","data","blob"})
             QVERIFY(!shouldBlock(QString::fromLatin1(s), "anyhost", false, {}));
     }
     void blocksRemoteWhenDisabled() {

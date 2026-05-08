@@ -12,13 +12,16 @@ option(WAL_QT_BUILD_TESTS "Build wal-qt unit tests" ON)
 find_package(Qt6 REQUIRED COMPONENTS
     Core Gui Widgets WebEngineWidgets WebChannel Network Test)
 find_package(LayerShellQt REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PipeWire REQUIRED libpipewire-0.3)
 
 add_library(wal_qt_lib STATIC)
-target_include_directories(wal_qt_lib PUBLIC src)
+target_include_directories(wal_qt_lib PUBLIC src ${PipeWire_INCLUDE_DIRS})
 target_link_libraries(wal_qt_lib PUBLIC
     Qt6::Core Qt6::Gui Qt6::Widgets
     Qt6::WebEngineWidgets Qt6::WebChannel Qt6::Network
-    LayerShellQt::Interface)
+    LayerShellQt::Interface
+    ${PipeWire_LIBRARIES})
 
 add_subdirectory(src)
 

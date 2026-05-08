@@ -4,7 +4,7 @@
 
 bool walqt::shouldBlock(const QString &scheme, const QString &host,
                         bool enabled, const QStringList &allow) {
-    static const QSet<QString> local{"waypaperhtml","file","qrc","data","blob"};
+    static const QSet<QString> local{"waypaperhtml","walfile","file","qrc","data","blob"};
     if (local.contains(scheme)) return false;
     if (enabled) return false;
     for (const auto &h : allow)

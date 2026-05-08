@@ -121,18 +121,6 @@ body {
   opacity: 1;
 }
 
-.wallpaper-video-layer.video-loop-fade {
-  animation: wallpaper-video-fade var(--video-loop-fade-ms, 220ms) ease-out;
-}
-
-@keyframes wallpaper-video-fade {
-  from {
-    filter: brightness(0.88);
-  }
-  to {
-    filter: brightness(1);
-  }
-}
 
 .wallpaper-root.video-active .wallpaper-video-layer {
   opacity: 0;
@@ -151,4 +139,19 @@ body {
 
 .wallpaper-root.video-active .wallpaper-layer {
   opacity: 0;
+}
+
+/* Video startup cover: opaque during buffer/load, fades out when playing. */
+.video-startup-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: var(--wallpaper-base-color);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.video-startup-cover.is-visible {
+  opacity: 1;
+  transition: none;
 }

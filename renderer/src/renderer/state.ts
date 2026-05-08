@@ -20,17 +20,32 @@ type RuntimeDom = {
   rootEl: HTMLElement | null;
   /** Oversized layout box for parallax zoom (avoids CSS scale blur). */
   parallaxSurfaceEl: HTMLElement | null;
+  /** Black cover shown during video buffer/load to hide the blank frame. */
+  videoCoverEl: HTMLElement | null;
 };
 
 export const dom: RuntimeDom = {
-  activeLayer: document.querySelector<HTMLImageElement>("#wallpaper-active"),
-  incomingLayer: document.querySelector<HTMLImageElement>("#wallpaper-incoming"),
-  webglCanvas: document.querySelector<HTMLCanvasElement>("#wallpaper-webgl"),
-  videoActiveLayer: document.querySelector<HTMLVideoElement>("#wallpaper-video-active"),
-  videoIncomingLayer: document.querySelector<HTMLVideoElement>("#wallpaper-video-incoming"),
-  rootEl: document.querySelector<HTMLElement>(".wallpaper-root"),
-  parallaxSurfaceEl: document.querySelector<HTMLElement>(".wallpaper-parallax-surface"),
+  activeLayer: null,
+  incomingLayer: null,
+  webglCanvas: null,
+  videoActiveLayer: null,
+  videoIncomingLayer: null,
+  rootEl: null,
+  parallaxSurfaceEl: null,
+  videoCoverEl: null,
 };
+
+/** Re-bind DOM refs (call from DOMContentLoaded; module init can run before <body> exists under WebEngine). */
+export function refreshDomRefs(): void {
+  dom.activeLayer = document.querySelector<HTMLImageElement>("#wallpaper-active");
+  dom.incomingLayer = document.querySelector<HTMLImageElement>("#wallpaper-incoming");
+  dom.webglCanvas = document.querySelector<HTMLCanvasElement>("#wallpaper-webgl");
+  dom.videoActiveLayer = document.querySelector<HTMLVideoElement>("#wallpaper-video-active");
+  dom.videoIncomingLayer = document.querySelector<HTMLVideoElement>("#wallpaper-video-incoming");
+  dom.rootEl = document.querySelector<HTMLElement>(".wallpaper-root");
+  dom.parallaxSurfaceEl = document.querySelector<HTMLElement>(".wallpaper-parallax-surface");
+  dom.videoCoverEl = document.querySelector<HTMLElement>("#wallpaper-video-cover");
+}
 
 export const state: RuntimeState = {
   activeTarget: null,

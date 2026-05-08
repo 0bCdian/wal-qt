@@ -2,6 +2,7 @@
 #include <QWidget>
 #include <QJsonObject>
 #include <QString>
+#include <QVector>
 #include <functional>
 
 class QWebEngineView;
@@ -24,6 +25,7 @@ public:
 
     QString screenName() const;
     int monitorIndex() const { return monitorIndex_; }
+    bool audioReactive() const { return audioReactive_; }
     QString currentTarget() const { return currentTarget_; }
     QString currentKind()   const { return currentKind_; }
 
@@ -38,11 +40,16 @@ public:
     void setPlaybackPolicy(const QJsonObject &req);
     void pushWallpaperConfig(const QJsonObject &req);
     void pushCapabilities(const QJsonObject &req);
+    void dispatchAudio(const QVector<float> &bands, float rms, float peak);
+    void applyImagePresentation(const QString &imageFitMode, const QString &imageRendering);
 
     WallpaperBridge *bridge() const { return bridge_; }
 
     // Stretch (Task 24): pointer-interactive toggle. Default off in v1.
     void setPointerInteractive(bool interactive);
+
+signals:
+    void audioReactiveChanged(int monitorIndex, bool active);
 
 private slots:
     void onTransitionAck(int monitorId, bool ok, const QString &err);
@@ -62,8 +69,25 @@ private:
     QString pendingKind_;
     bool currentManifestNetwork_ = false;
     bool globalNetworkEnabled_ = false;
+    bool keyboard_ = false;
+    bool audioReactive_ = false;
+
+    struct ParallaxState {
+        bool enabled = false;
+        float zoom = 1.2f;
+        float stepPercent = 5.0f;
+        int animationMs = 600;
+        float easing[4] = {0.215f, 0.610f, 0.355f, 1.0f};
+        int resetMs = 400;
+        float offsetX = 0.0f;
+        float offsetY = 0.0f;
+    };
+    ParallaxState parallaxState_;
 
     std::function<void(bool, QString)> pendingDone_;
+    // Set when an image/video load arrives while the view is on a web package URL.
+    // Emitted to the bridge once the qrc renderer has reconnected (rendererConnected).
+    QString pendingShellLoadJson_;
 
     void setupLayerShell(QScreen *screen);
     void installBridgeAndUserScripts();
@@ -72,5 +96,8 @@ private:
                         std::function<void(bool, QString)> done);
     void loadImageOrVideo(const QJsonObject &req);
     void applyEffectiveNetworkPolicy();
+    void setKeyboardInteractivity(bool interactive);
+    void runJsDispatch(const QString &eventType, const QJsonObject &payload);
+    void dispatchParallaxState(bool wrappedX, bool wrappedY);
 };
 }
