@@ -6,18 +6,24 @@ import { resolveAssetUrl } from "./urlUtils";
 import { logWebglWorkerCapabilityOnce } from "./webglWorkerProbe";
 import { dom, state } from "./state";
 import { resolveTransitionIntent, type TransitionIntent } from "./transition/intent";
+import { runFadeLayerCrossfade } from "./transition/fadeLayer";
 import type {
   ImageFitMode,
   ImageRenderingMode,
   LoadRequest,
   TransitionExecutionMeta,
+  TransitionEngine,
 } from "./types";
-import { clampUniformMaxEdge, coverTextureBitmapSize } from "./webglTextureSizing";
+
 import {
   naturalSizeInBackingPixels,
   objectFitKindForLayer,
   WEBGL_OBJECT_FIT_FILL,
 } from "./webglObjectFit";
+import { clampUniformMaxEdge, coverTextureBitmapSize } from "./webglTextureSizing";
+
+/** DOM-layer transition drivers (anything that is not WebGL/`none`/reserved `vta`). */
+type DomCompositorTransitionEngine = Exclude<TransitionEngine, "none" | "vta" | "webgl">;
 
 gsap.registerPlugin(CustomEase);
 // Avoid GSAP bunching tween ticks after delayed frames; reduces visible stutter on transitions.
@@ -81,64 +87,6 @@ function createIntentEase(intent: TransitionIntent, idSuffix: string): string {
   const name = `wp_ease_${idSuffix}`;
   CustomEase.create(name, `M0,0 C${x1} ${y1} ${x2} ${y2} 1,1`);
   return name;
-}
-
-/** Crossfade via CSS opacity transition (compositor-driven; less JS than rAF or GSAP). */
-function runFadeLayerTransition(
-  intent: TransitionIntent,
-  incoming: HTMLImageElement,
-  outgoing: HTMLImageElement,
-): Promise<void> {
-  const [x1, y1, x2, y2] = intent.bezier;
-  const durationMs = intent.durationMs;
-  const guardMs = computeRendererGuardTimeoutMs(durationMs);
-  const easeCss = `cubic-bezier(${x1},${y1},${x2},${y2})`;
-
-  if (durationMs <= 0) {
-    incoming.style.opacity = "1";
-    outgoing.style.opacity = "0";
-    return Promise.resolve();
-  }
-
-  incoming.style.zIndex = "2";
-  outgoing.style.zIndex = "2";
-  incoming.style.transition = "none";
-  outgoing.style.transition = "none";
-  incoming.style.opacity = "0";
-  outgoing.style.opacity = "1";
-
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const settle = (ok: boolean) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(guard);
-      incoming.removeEventListener("transitionend", onEnd);
-      incoming.style.transition = "";
-      outgoing.style.transition = "";
-      incoming.style.opacity = "1";
-      outgoing.style.opacity = "0";
-      if (ok) resolve();
-      else reject(new Error(`fade transition timeout after ${guardMs}ms`));
-    };
-
-    const onEnd = (e: TransitionEvent) => {
-      if (e.target !== incoming || e.propertyName !== "opacity") return;
-      settle(true);
-    };
-
-    const guard = window.setTimeout(() => settle(false), guardMs);
-    incoming.addEventListener("transitionend", onEnd);
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        incoming.style.transition = `opacity ${durationMs}ms ${easeCss}`;
-        outgoing.style.transition = `opacity ${durationMs}ms ${easeCss}`;
-        incoming.style.opacity = "1";
-        outgoing.style.opacity = "0";
-      });
-    });
-  });
 }
 
 function wipeVectorPercent(
@@ -634,16 +582,17 @@ function runGsapLayerTransition(
   incoming: HTMLImageElement,
   outgoing: HTMLImageElement,
   easeSuffix: string,
-): Promise<void> {
+): Promise<DomCompositorTransitionEngine> {
   const { effect } = intent;
   const guardMs = computeRendererGuardTimeoutMs(intent.durationMs);
 
-  return new Promise((resolve, reject) => {
-    if (effect === "fade") {
-      runFadeLayerTransition(intent, incoming, outgoing).then(resolve).catch(reject);
-      return;
-    }
+  if (effect === "fade") {
+    return runFadeLayerCrossfade(intent, incoming, outgoing).then((b) =>
+      b === "waapi" ? "waapi" : "css_fallback",
+    );
+  }
 
+  return new Promise((resolve, reject) => {
     const ease = createIntentEase(intent, easeSuffix);
     const d = intent.durationMs / 1000;
 
@@ -654,7 +603,7 @@ function runGsapLayerTransition(
 
     const done = () => {
       window.clearTimeout(guard);
-      resolve();
+      resolve("gsap");
     };
 
     gsap.set([incoming, outgoing], { zIndex: 2 });
@@ -1551,6 +1500,21 @@ async function nextAnimationFrame(): Promise<void> {
   });
 }
 
+function isLikelyChromiumFamily(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (/QtWebEngine/i.test(ua)) return true;
+  return /\b(Chrome|Chromium|EdgA?|Edg)\//i.test(ua);
+}
+
+/** After committing the post-WebGL `<img>`, wait for paints (1 frame on Chromium; 2 elsewhere). */
+async function waitForWebglCompositorPresent(): Promise<void> {
+  const frames = isLikelyChromiumFamily() ? 1 : 2;
+  for (let i = 0; i < frames; i++) {
+    await nextAnimationFrame();
+  }
+}
+
 function commitFinalImage(target: string): void {
   if (!dom.activeLayer || !dom.incomingLayer) {
     return;
@@ -1720,6 +1684,7 @@ export async function runTransition(
     const isWipe = webglEffect === "wipe";
 
     let fallbackReason: string | undefined;
+    let recoverDomEngine: DomCompositorTransitionEngine = "gsap";
     let fromSource: WebGlTextureSource | null = null;
     let toSource: WebGlTextureSource | null = null;
     try {
@@ -1841,11 +1806,8 @@ export async function runTransition(
         }
       }
       checkNotStale?.();
-      // Two rAF waits: one for layout+paint of the committed image, one for the
-      // compositor to present the new layer. Belt-and-suspenders after decode().
-      await nextAnimationFrame();
-      checkNotStale?.();
-      await nextAnimationFrame();
+      // Prefer one rAF on Chromium/Qt WebEngine; Safari/Firefox still get two waits.
+      await waitForWebglCompositorPresent();
       checkNotStale?.();
       dom.webglCanvas?.classList.remove("is-active");
       if (toSource) {
@@ -1873,7 +1835,7 @@ export async function runTransition(
         effect: isWipe ? "wipe" : "fade",
       };
       try {
-        await runGsapLayerTransition(
+        recoverDomEngine = await runGsapLayerTransition(
           fallbackIntent,
           dom.incomingLayer,
           dom.activeLayer,
@@ -1893,7 +1855,7 @@ export async function runTransition(
     return {
       target: normalizedTarget,
       meta: {
-        engine: fallbackReason ? "gsap" : "webgl",
+        engine: fallbackReason ? recoverDomEngine : "webgl",
         effect: webglEffect,
         duration_actual_ms: Math.round(performance.now() - startedAt),
         ...(fallbackReason ? { fallback_reason: fallbackReason } : {}),
@@ -1912,9 +1874,10 @@ export async function runTransition(
   if (!supportsGsapEffect) {
     domFallbackReason = `transition_${intent.effect}_gsap_unsupported`;
   }
+  let domEngine: DomCompositorTransitionEngine = "gsap";
   try {
     checkNotStale?.();
-    await runGsapLayerTransition(
+    domEngine = await runGsapLayerTransition(
       fallbackIntent,
       dom.incomingLayer,
       dom.activeLayer,
@@ -1931,7 +1894,7 @@ export async function runTransition(
   return {
     target: normalizedTarget,
     meta: {
-      engine: "gsap",
+      engine: domEngine,
       effect: intent.effect,
       duration_actual_ms: Math.round(performance.now() - startedAt),
       ...(domFallbackReason ? { fallback_reason: domFallbackReason } : {}),

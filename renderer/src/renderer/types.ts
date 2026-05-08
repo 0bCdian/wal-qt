@@ -56,7 +56,14 @@ export type LoadParallaxConfig = Omit<Schemas["ParallaxConfig"], "easing"> & {
 // ── Renderer-local (no OpenAPI equivalent) ────────────────────────────────────
 
 /** Engine used to execute a transition — renderer-local, not on the wire. */
-export type TransitionEngine = "none" | "vta" | "css_fallback" | "webgl" | "gsap";
+export type TransitionEngine =
+  | "none"
+  | "vta"
+  | "css_fallback"
+  | "webgl"
+  | "gsap"
+  /** Web Animations opacity crossfade (preferred on Chromium/Qt WebEngine). */
+  | "waapi";
 
 /** Metadata recorded after a transition completes — renderer-local. */
 export type TransitionExecutionMeta = {
