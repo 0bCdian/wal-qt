@@ -290,25 +290,15 @@ function capWebglBackingDimensions(width: number, height: number): [number, numb
   return [Math.max(1, Math.floor(width * scale)), Math.max(1, Math.floor(height * scale))];
 }
 
-/** Uniform scale of backing store in [0.25, 1] from `WAYPAPER_WEBGL_SCALE` at document-start. */
-function webglRasterDensityScale(): number {
-  const raw = (globalThis as { __waypaperWebglScale?: unknown }).__waypaperWebglScale;
-  if (typeof raw === "number" && Number.isFinite(raw)) {
-    return Math.min(1, Math.max(0.25, raw));
-  }
-  return 1;
-}
-
-/** layout CSS pixels × DPR → device pixels, then optional raster scale, then max-edge cap. */
-function cssRectToWebGlBackingDimensions(rectW: number, rectH: number): [number, number] {
+/**
+ * Full layout × devicePixelRatio backing for shader transitions (still applies
+ * `WAYPAPER_WEBGL_MAX_EDGE`). Skips `WAYPAPER_WEBGL_SCALE` downsampling intended for constrained
+ * WebKit-class engines; Chromium / Qt WebEngine uses native-res transition buffers.
+ */
+function cssRectToSharpTransitionBackingDimensions(rectW: number, rectH: number): [number, number] {
   const dpr = window.devicePixelRatio || 1;
-  let width = Math.max(1, Math.floor(rectW * dpr));
-  let height = Math.max(1, Math.floor(rectH * dpr));
-  const s = webglRasterDensityScale();
-  if (s < 1) {
-    width = Math.max(1, Math.floor(width * s));
-    height = Math.max(1, Math.floor(height * s));
-  }
+  const width = Math.max(1, Math.floor(rectW * dpr));
+  const height = Math.max(1, Math.floor(rectH * dpr));
   return capWebglBackingDimensions(width, height);
 }
 
@@ -346,7 +336,7 @@ function resizeWebGlTransitionCanvasIfNeeded(
   bindPresentation?: () => void,
 ): boolean {
   const layout = webGlTransitionLayoutRect(canvas);
-  const [w, h] = cssRectToWebGlBackingDimensions(layout.width, layout.height);
+  const [w, h] = cssRectToSharpTransitionBackingDimensions(layout.width, layout.height);
   if (canvas.width === w && canvas.height === h) {
     return false;
   }
@@ -440,17 +430,14 @@ function bindWebGlPresentationUniforms(
   if (uToNat) gl.uniform2f(uToNat, toNatBacking.x, toNatBacking.y);
 }
 
-/** Backing pixel size for WebGL textures (layout × DPR × optional scale, then MAX_EDGE cap). */
+/** Sharp backing for shader transition textures (`WAYPAPER_WEBGL_SCALE` not applied here). */
 function computeWebGlCapPixelSize(): [number, number] {
   const canvas = dom.webglCanvas;
   if (!canvas) {
-    return capWebglBackingDimensions(
-      Math.max(1, Math.floor(1920 * webglRasterDensityScale())),
-      Math.max(1, Math.floor(1080 * webglRasterDensityScale())),
-    );
+    return cssRectToSharpTransitionBackingDimensions(1920, 1080);
   }
   const layout = webGlTransitionLayoutRect(canvas);
-  return cssRectToWebGlBackingDimensions(layout.width, layout.height);
+  return cssRectToSharpTransitionBackingDimensions(layout.width, layout.height);
 }
 
 /** WebKit rejects texImage2D from `<img>` for some schemes (e.g. asset://). */
@@ -831,7 +818,7 @@ async function runWebGlTransition(
   checkNotStale?.();
 
   const layout0 = webGlTransitionLayoutRect(canvas);
-  const [width, height] = cssRectToWebGlBackingDimensions(layout0.width, layout0.height);
+  const [width, height] = cssRectToSharpTransitionBackingDimensions(layout0.width, layout0.height);
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;

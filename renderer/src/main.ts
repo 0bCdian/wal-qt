@@ -26,6 +26,18 @@ let processingLoad = false;
 let loadGeneration = 0;
 let deferredParallaxPayload: ParallaxPayload | null = null;
 let deferredParallaxDropCount = 0;
+
+type DeferredPresentation = {
+  image_fit_mode: ImageFitMode;
+  image_rendering: ImageRenderingMode;
+};
+let deferredImagePresentation: DeferredPresentation | null = null;
+let deferredImagePresentationDropCount = 0;
+
+/** Wallhaven / web-package user properties (`wallpaperPropertyListener.applyUserProperties`). */
+let deferredWallpaperUserPropsQueue: unknown | null = null;
+let deferredWallpaperUserPropsDropCount = 0;
+
 /** Coalesce rapid loadWallpaper signals before starting work while idle (macrotask batches IPC). */
 let loadQueueFlushScheduled = false;
 
@@ -53,6 +65,18 @@ function resolveBaseColor(): string {
 function applyBaseColor(): void {
   const color = resolveBaseColor();
   document.documentElement.style.setProperty("--wallpaper-base-color", color);
+}
+
+/** wallpaperengine.io-style custom property payloads for active web wallpapers. */
+function applyWallpaperListenerUserProps(props: unknown): void {
+  const listener = (
+    window as unknown as {
+      wallpaperPropertyListener?: { applyUserProperties?: (p: unknown) => void };
+    }
+  ).wallpaperPropertyListener;
+  if (typeof listener?.applyUserProperties === "function") {
+    listener.applyUserProperties(props);
+  }
 }
 
 async function runImageTransition(
@@ -160,6 +184,28 @@ async function executeLoadRequest(req: LoadRequest) {
       deferredParallaxDropCount = 0;
       applyParallax(payload);
     }
+    if (deferredImagePresentation) {
+      if (deferredImagePresentationDropCount > 0) {
+        logger.debug("deferred image presentation while transition in-flight", {
+          dropped: deferredImagePresentationDropCount,
+        });
+      }
+      const pres = deferredImagePresentation;
+      deferredImagePresentation = null;
+      deferredImagePresentationDropCount = 0;
+      applyHostImagePresentation(pres.image_fit_mode, pres.image_rendering);
+    }
+    if (deferredWallpaperUserPropsQueue !== null) {
+      if (deferredWallpaperUserPropsDropCount > 0) {
+        logger.debug("deferred wallpaper user properties while transition in-flight", {
+          dropped: deferredWallpaperUserPropsDropCount,
+        });
+      }
+      const props = deferredWallpaperUserPropsQueue;
+      deferredWallpaperUserPropsQueue = null;
+      deferredWallpaperUserPropsDropCount = 0;
+      applyWallpaperListenerUserProps(props);
+    }
   }
 }
 
@@ -235,6 +281,16 @@ function handleImagePresentation(payload: {
   if (payload.monitor_id !== state.monitorId) {
     return;
   }
+  if (state.transitionInFlight) {
+    if (deferredImagePresentation !== null) {
+      deferredImagePresentationDropCount += 1;
+    }
+    deferredImagePresentation = {
+      image_fit_mode: payload.image_fit_mode,
+      image_rendering: payload.image_rendering,
+    };
+    return;
+  }
   applyHostImagePresentation(payload.image_fit_mode, payload.image_rendering);
 }
 
@@ -251,6 +307,7 @@ function handleConfigPush(payload: unknown): void {
     image_rendering?: ImageRenderingMode;
     properties?: Record<string, unknown>;
   };
+
   if (typed.monitor_id !== undefined && typed.image_fit_mode && typed.image_rendering) {
     handleImagePresentation({
       monitor_id: typed.monitor_id,
@@ -258,18 +315,20 @@ function handleConfigPush(payload: unknown): void {
       image_rendering: typed.image_rendering,
     });
   }
-  // Dispatch WE property listener for wallpapers that use wallpaperPropertyListener.applyUserProperties.
+
   const props = (typed as Record<string, unknown>).values ?? typed.properties;
-  if (props) {
-    const listener = (
-      window as unknown as {
-        wallpaperPropertyListener?: { applyUserProperties?: (p: unknown) => void };
-      }
-    ).wallpaperPropertyListener;
-    if (typeof listener?.applyUserProperties === "function") {
-      listener.applyUserProperties(props);
-    }
+  if (!props) {
+    return;
   }
+
+  if (state.transitionInFlight) {
+    if (deferredWallpaperUserPropsQueue !== null) {
+      deferredWallpaperUserPropsDropCount += 1;
+    }
+    deferredWallpaperUserPropsQueue = props;
+    return;
+  }
+  applyWallpaperListenerUserProps(props);
 }
 
 // no-op until capability negotiation lands
