@@ -3,7 +3,7 @@
  *
  * Types that appear in the OpenAPI spec (docs/openapi-control-plane.yaml)
  * are re-exported from the generated file so there is a single source of
- * truth.  Run `npm run gen:api` to regenerate src/generated/control-plane.ts.
+ * truth.  Run `pnpm run gen:api` to regenerate src/generated/control-plane.ts.
  *
  * Types that originate from x-schemas (Tauri IPC events) or are
  * renderer-local are kept here by hand with a comment noting their source.

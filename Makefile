@@ -37,15 +37,15 @@ SKIP_DEPS_CHECK ?=
 help:
 	@echo "wal-qt — build and install (Qt6 WebEngine + LayerShellQt + PipeWire)"
 	@echo ""
-	@echo "Prereqs: CMake, C++17 compiler, pkg-config, Node/npm, Qt6 WebEngine, LayerShellQt, PipeWire dev."
+	@echo "Prereqs: CMake, C++17 compiler, pkg-config, Node.js + pnpm 11 (Corepack OK), Qt6 WebEngine, LayerShellQt, PipeWire dev."
 	@echo ""
 	@echo "Build:"
 	@echo "  make deps-check       Verify toolchain + pkg-config modules + LayerShellQt CMake package"
-	@echo "  make deps             npm ci in renderer/"
-	@echo "  make renderer         npm run build in renderer/ (embed dist/ via qrc)"
+	@echo "  make deps             pnpm install --frozen-lockfile in renderer/"
+	@echo "  make renderer         pnpm run build in renderer/ (embed dist/ via qrc)"
 	@echo "  make build            deps-check, deps, renderer, then CMake Release build"
 	@echo "  make test             ctest (after build)"
-	@echo "  make check            renderer lint + typecheck + tests (npm run check:all:strict)"
+	@echo "  make check            renderer lint + typecheck + tests (pnpm run check:all:strict)"
 	@echo "  make clean            rm build/"
 	@echo ""
 	@echo "Install:"
@@ -58,7 +58,7 @@ help:
 
 deps-check:
 	@if [ -n "$(SKIP_DEPS_CHECK)" ]; then echo "deps-check skipped (SKIP_DEPS_CHECK=1)"; exit 0; fi
-	@for cmd in cmake pkg-config node npm; do \
+	@for cmd in cmake pkg-config node pnpm; do \
 		command -v $$cmd >/dev/null 2>&1 || { echo "Missing required command: $$cmd" >&2; exit 1; }; \
 	done
 	@if command -v c++ >/dev/null 2>&1; then :; \
@@ -83,10 +83,10 @@ deps-check:
 	@echo "deps-check: ok"
 
 deps:
-	cd renderer && npm ci
+	cd renderer && pnpm install --frozen-lockfile
 
 renderer:
-	cd renderer && npm run build
+	cd renderer && pnpm run build
 
 build: deps-check deps renderer
 	cmake -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE)
@@ -99,7 +99,7 @@ test:
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
 
 check:
-	cd renderer && npm run check:all:strict
+	cd renderer && pnpm run check:all:strict
 
 verify-binary:
 	@test -f "$(SOURCE_BINARY)" || (echo "Missing $(SOURCE_BINARY). Run: make build" >&2 && exit 1)

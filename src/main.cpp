@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QWebEngineUrlScheme>
 
+#include "web/chromium_env.h"
 #include "app/app.h"
 #include "app/single_instance.h"
 #include "web/scheme_handler.h"
@@ -42,6 +43,7 @@ static void ensureFontconfigEnv()
 int main(int argc, char *argv[]) {
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "wayland");
+    walqt::applyChromiumEnvironment();
 #if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
     ensureFontconfigEnv();
 #endif

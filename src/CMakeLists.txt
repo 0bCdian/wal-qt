@@ -25,6 +25,11 @@ target_sources(wal_qt_lib PRIVATE
 )
 
 target_sources(wal_qt_lib PRIVATE
+    web/chromium_env.h
+    web/chromium_env.cpp
+)
+
+target_sources(wal_qt_lib PRIVATE
     web/scheme_handler.h
     web/scheme_handler.cpp
 )

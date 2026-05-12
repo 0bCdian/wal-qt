@@ -7,16 +7,16 @@ that Qt places onto each monitor's background-layer `QWebEngineView`.
 ## Run
 
 ```sh
-npm install
-npm run dev          # local browser dev (no Qt host)
-npm run build        # produces dist/, embedded by the wal-qt CMake target
-npm run check:all:strict   # lint + format + typecheck + tests (CI gate)
+pnpm install
+pnpm run dev         # local browser dev (no Qt host)
+pnpm run build       # produces dist/, embedded by the wal-qt CMake target
+pnpm run check:all:strict   # lint + format + typecheck + tests (CI gate)
 ```
 
 ## Tests
 
 ```sh
-npm run test         # vitest run, all unit tests (Node env, no DOM)
+pnpm run test       # vitest run, all unit tests (Node env, no DOM)
 ```
 
 Unit tests are pure-TS (string-shape, math, parsing). There is no headless

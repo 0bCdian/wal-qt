@@ -8,12 +8,12 @@
     "build": "tsc && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint . --config .oxlintrc.json --tsconfig tsconfig.json",
-    "lint:advisory": "npm run lint || true",
+    "lint:advisory": "pnpm run lint || true",
     "format": "oxfmt --config .oxfmtrc.json --write .",
     "format:check": "oxfmt --config .oxfmtrc.json --check .",
-    "format:check:advisory": "npm run format:check || true",
-    "check:all": "npm run lint:advisory && npm run format:check:advisory && npm run typecheck && npm run test",
-    "check:all:strict": "npm run lint && npm run format:check && npm run typecheck && npm run test",
+    "format:check:advisory": "pnpm run format:check || true",
+    "check:all": "pnpm run lint:advisory && pnpm run format:check:advisory && pnpm run typecheck && pnpm run test",
+    "check:all:strict": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test",
     "test": "vitest run",
     "preview": "vite preview"
   },
@@ -27,5 +27,6 @@
     "typescript": "~5.6.2",
     "vite": "^6.4.2",
     "vitest": "^4.1.4"
-  }
+  },
+  "packageManager": "pnpm@11.1.1"
 }
