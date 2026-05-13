@@ -81,7 +81,7 @@ void walqt::WallpaperWindow::setupLayerShell(QScreen *screen) {
         | LayerShellQt::Window::AnchorRight));
     ls->setExclusiveZone(-1);   // -1 = stretch under panels
     ls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
-    ls->setScope(QStringLiteral("wayland-utauri-monitor-%1").arg(monitorIndex_));
+    ls->setScope(QStringLiteral("wal-qt-monitor-%1").arg(monitorIndex_));
 }
 
 void walqt::WallpaperWindow::installBridgeAndUserScripts() {
