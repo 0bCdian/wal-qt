@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Exercise every HTTP path the waypaper-engine daemon uses on wal-qt
-# (see daemon/internal/backend/waylandutauri/client.go), against a live wal-qt.
+# (see daemon/internal/backend/walqt/client.go), against a live wal-qt.
 set -euo pipefail
 
 WALQT_BIN="${WALQT_BIN:-$(cd "$(dirname "$0")/.." && pwd)/build/wal-qt}"

@@ -113,7 +113,7 @@ void WallpaperController::route(const QString &method, const QString &path,
                                 const QJsonObject &body, HttpResponder respond)
 {
     if (method == "GET"  && path == "/health") {
-        // waypaper-engine daemon/internal/backend/waylandutauri/client.go checkHealth
+        // waypaper-engine daemon/internal/backend/walqt/client.go checkHealth
         QJsonObject h;
         h["ok"] = true;
         h["service"] = QStringLiteral("wal-qt");
@@ -262,7 +262,7 @@ void WallpaperController::handlePlayback(const QJsonObject &req, HttpResponder r
 
 // ---------------------------------------------------------------------------
 // statusJson — matches wal-utauri control_api::build_status_response + WallpaperStatus
-// (waypaper-engine decodes as waylandutauri.statusResponse / wallpaperStatusPayload).
+// (waypaper-engine decodes as walqt.statusResponse / wallpaperStatusPayload).
 // ---------------------------------------------------------------------------
 namespace {
 QJsonObject defaultParallaxJson()
