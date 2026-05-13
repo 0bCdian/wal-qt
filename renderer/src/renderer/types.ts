@@ -1,5 +1,5 @@
 /**
- * Wire-contract types for the wayland-utauri renderer.
+ * Wire-contract types for the wal-qt renderer.
  *
  * Types that appear in the OpenAPI spec (docs/openapi-control-plane.yaml)
  * are re-exported from the generated file so there is a single source of

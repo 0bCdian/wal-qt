@@ -402,7 +402,7 @@ export interface components {
         HealthResponse: {
             /** @example true */
             ok: boolean;
-            /** @example wayland-utauri */
+            /** @example wal-qt */
             service: string;
             /** @example 0 */
             api_version: string;
