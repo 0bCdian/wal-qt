@@ -48,8 +48,8 @@ The multi-monitor ack aggregator: collects N transition acks (or a timeout), the
 
 ## Cross-cutting
 
-### Backend Hijack
-The symlink trick (`scripts/install-waypaper-hijack.sh`) that puts `~/.local/bin/wayland-utauri → build/wal-qt`, so the waypaper-engine Go daemon spawns wal-qt without any engine-side changes. Mentioned here because it shapes the API contract: wal-qt must remain wire-compatible with whatever the engine sends to wayland-utauri.
+### wal-qt Installation
+`scripts/install-wal-qt.sh` installs `~/.local/bin/wal-qt → build/wal-qt` so the waypaper-engine Go daemon spawns it directly. wal-qt's HTTP control surface is the authoritative API — wire compatibility with prior `wayland-utauri` builds is no longer maintained.
 
 ---
 
