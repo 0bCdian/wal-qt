@@ -35,7 +35,7 @@ private slots:
         QJsonObject o = doc.object();
         QVERIFY(o.value(QStringLiteral("ok")).toBool());
         QCOMPARE(o.value(QStringLiteral("service")).toString(),
-                 QStringLiteral("wayland-utauri"));
+                 QStringLiteral("wal-qt"));
         QCOMPARE(o.value(QStringLiteral("api_version")).toString(),
                  QStringLiteral("0"));
     }

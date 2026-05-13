@@ -116,7 +116,7 @@ void WallpaperController::route(const QString &method, const QString &path,
         // waypaper-engine daemon/internal/backend/waylandutauri/client.go checkHealth
         QJsonObject h;
         h["ok"] = true;
-        h["service"] = QStringLiteral("wayland-utauri");
+        h["service"] = QStringLiteral("wal-qt");
         h["api_version"] = QStringLiteral("0");
         respond(200, QJsonDocument(h).toJson(QJsonDocument::Compact));
         return;
