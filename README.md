@@ -27,7 +27,7 @@ System packages (Arch): `qt6-webengine`, `qt6-webchannel`, `layer-shell-qt`, `pi
 
 ## Using with waypaper-engine
 
-`waypaper-engine`'s daemon spawns `wal-qt` directly by name from `PATH` (see `daemon/internal/backend/waylandutauri/waylandutauri.go`).
+`waypaper-engine`'s daemon spawns `wal-qt` directly by name from `PATH` (see `daemon/internal/backend/walqt/walqt.go`).
 
 After `cmake --build build`, run:
 
