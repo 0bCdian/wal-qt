@@ -6,12 +6,12 @@ class TestSocketPath : public QObject {
 private slots:
     void prefersXdgRuntimeDir() {
         qputenv("XDG_RUNTIME_DIR", "/run/user/1000");
-        QCOMPARE(walqt::socketPath(), QString("/run/user/1000/wayland-utauri.sock"));
-        QCOMPARE(walqt::lockPath(),   QString("/run/user/1000/wayland-utauri.lock"));
+        QCOMPARE(walqt::socketPath(), QString("/run/user/1000/wal-qt.sock"));
+        QCOMPARE(walqt::lockPath(),   QString("/run/user/1000/wal-qt.lock"));
     }
     void fallsBackToTmp() {
         qunsetenv("XDG_RUNTIME_DIR");
-        QVERIFY(walqt::socketPath().endsWith("/wayland-utauri.sock"));
+        QVERIFY(walqt::socketPath().endsWith("/wal-qt.sock"));
     }
 };
 QTEST_GUILESS_MAIN(TestSocketPath)

@@ -5,6 +5,6 @@ static QString base() {
     QString r = qEnvironmentVariable("XDG_RUNTIME_DIR");
     return r.isEmpty() ? QDir::tempPath() : r;
 }
-QString socketPath() { return base() + "/wayland-utauri.sock"; }
-QString lockPath()   { return base() + "/wayland-utauri.lock"; }
+QString socketPath() { return base() + "/wal-qt.sock"; }
+QString lockPath()   { return base() + "/wal-qt.lock"; }
 }
