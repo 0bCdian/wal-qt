@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercise every HTTP path the waypaper-engine daemon uses on wayland-utauri
+# Exercise every HTTP path the waypaper-engine daemon uses on wal-qt
 # (see daemon/internal/backend/waylandutauri/client.go), against a live wal-qt.
 set -euo pipefail
 
@@ -20,12 +20,12 @@ cleanup() { kill "$PID" 2>/dev/null || true; rm -rf "$RUNDIR"; }
 trap cleanup EXIT
 
 for _ in $(seq 1 80); do
-  [[ -S "$RUNDIR/wayland-utauri.sock" ]] && break
+  [[ -S "$RUNDIR/wal-qt.sock" ]] && break
   sleep 0.05
 done
-[[ -S "$RUNDIR/wayland-utauri.sock" ]] || { echo "socket did not appear" >&2; exit 1; }
+[[ -S "$RUNDIR/wal-qt.sock" ]] || { echo "socket did not appear" >&2; exit 1; }
 
-SOCK="$RUNDIR/wayland-utauri.sock"
+SOCK="$RUNDIR/wal-qt.sock"
 U="http://localhost"
 
 curl_api() {
@@ -33,7 +33,7 @@ curl_api() {
 }
 
 echo "== GET /health"
-curl_api "$U/health" | jq -e '.ok == true and .service == "wayland-utauri" and .api_version == "0"'
+curl_api "$U/health" | jq -e '.ok == true and .service == "wal-qt" and .api_version == "0"'
 
 echo "== GET /wallpaper/status"
 STATUS_JSON=$(curl_api "$U/wallpaper/status")
