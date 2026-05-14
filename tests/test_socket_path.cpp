@@ -7,7 +7,7 @@ private slots:
     void prefersXdgRuntimeDir() {
         qputenv("XDG_RUNTIME_DIR", "/run/user/1000");
         QCOMPARE(walqt::socketPath(), QString("/run/user/1000/wal-qt.sock"));
-        QCOMPARE(walqt::lockPath(),   QString("/run/user/1000/wal-qt.lock"));
+        QCOMPARE(walqt::lockPath(),   QString("/run/user/1000/wal-qt-host.lock"));
     }
     void fallsBackToTmp() {
         qunsetenv("XDG_RUNTIME_DIR");

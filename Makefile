@@ -11,7 +11,7 @@ BUILD_DIR ?= build
 CMAKE_BUILD_TYPE ?= Release
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
-APP_NAME := wal-qt
+APP_NAME := wal-qt-host
 SOURCE_BINARY := $(BUILD_DIR)/$(APP_NAME)
 
 BIN_DIR ?= $(DESTDIR)$(PREFIX)/bin
@@ -110,19 +110,19 @@ install: verify-binary
 	printf '%s\n' \
 		'[Desktop Entry]' \
 		'Type=Application' \
-		'Name=wal-qt' \
+		'Name=wal-qt-host' \
 		'GenericName=Wayland Wallpaper Host' \
 		'Comment=Qt6 WebEngine wallpaper host (Wayland layer-shell)' \
-		'Exec=wal-qt' \
+		'Exec=wal-qt-host' \
 		'Categories=Graphics;Utility;' \
 		'Terminal=false' \
 		'StartupNotify=false' \
 		'Keywords=wallpaper;wayland;waypaper;' | \
-		install -Dm644 /dev/stdin "$(DESKTOP_DIR)/wal-qt.desktop"
+		install -Dm644 /dev/stdin "$(DESKTOP_DIR)/wal-qt-host.desktop"
 
 uninstall:
 	rm -f "$(BIN_DIR)/$(APP_NAME)"
-	rm -f "$(DESKTOP_DIR)/wal-qt.desktop"
+	rm -f "$(DESKTOP_DIR)/wal-qt-host.desktop"
 
 install-system:
 	$(MAKE) install PREFIX="$(INSTALL_PREFIX_SYSTEM)"

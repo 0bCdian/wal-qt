@@ -3,14 +3,14 @@
 # (see daemon/internal/backend/walqt/client.go), against a live wal-qt.
 set -euo pipefail
 
-WALQT_BIN="${WALQT_BIN:-$(cd "$(dirname "$0")/.." && pwd)/build/wal-qt}"
+WALQT_BIN="${WALQT_BIN:-$(cd "$(dirname "$0")/.." && pwd)/build/wal-qt-host}"
 RUNDIR="${XDG_RUNTIME_DIR:-/tmp}/walqt-api-verify-$$"
 mkdir -p "$RUNDIR"
 export XDG_RUNTIME_DIR="$RUNDIR"
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
 
 if [[ ! -x "$WALQT_BIN" ]]; then
-  echo "wal-qt binary missing: $WALQT_BIN" >&2
+  echo "wal-qt-host binary missing: $WALQT_BIN" >&2
   exit 1
 fi
 

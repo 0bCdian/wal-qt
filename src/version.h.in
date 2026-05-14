@@ -1,0 +1,2 @@
+#pragma once
+#define WAL_QT_HOST_VERSION "@PROJECT_VERSION@"

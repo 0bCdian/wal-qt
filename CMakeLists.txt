@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(wal-qt VERSION 0.1 LANGUAGES CXX)
+project(wal-qt VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -8,6 +8,13 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(WAL_QT_BUILD_TESTS "Build wal-qt unit tests" ON)
+
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/version.h.in
+    ${CMAKE_BINARY_DIR}/generated/version.h
+    @ONLY
+)
+include_directories(${CMAKE_BINARY_DIR}/generated)
 
 find_package(Qt6 REQUIRED COMPONENTS
     Core Gui Widgets WebEngineWidgets WebChannel Network Test)
@@ -25,8 +32,8 @@ target_link_libraries(wal_qt_lib PUBLIC
 
 add_subdirectory(src)
 
-add_executable(wal-qt src/main.cpp)
-target_link_libraries(wal-qt PRIVATE wal_qt_lib)
+add_executable(wal-qt-host src/main.cpp)
+target_link_libraries(wal-qt-host PRIVATE wal_qt_lib)
 
 set(RENDERER_DIST ${CMAKE_SOURCE_DIR}/renderer/dist)
 set(RENDERER_QRC  ${CMAKE_BINARY_DIR}/renderer.qrc)
@@ -40,8 +47,8 @@ add_custom_command(
 add_custom_target(renderer_qrc DEPENDS ${RENDERER_QRC})
 
 set_source_files_properties(${RENDERER_QRC} PROPERTIES GENERATED 1)
-target_sources(wal-qt PRIVATE ${RENDERER_QRC})
-add_dependencies(wal-qt renderer_qrc)
+target_sources(wal-qt-host PRIVATE ${RENDERER_QRC})
+add_dependencies(wal-qt-host renderer_qrc)
 
 if(WAL_QT_BUILD_TESTS)
     enable_testing()

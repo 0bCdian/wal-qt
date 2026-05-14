@@ -1,8 +1,12 @@
 #include <QApplication>
 #include <QByteArray>
+#include <QCommandLineOption>
+#include <QCommandLineParser>
 #include <QFile>
+#include <QTextStream>
 #include <QWebEngineUrlScheme>
 
+#include "version.h"
 #include "web/chromium_env.h"
 #include "app/app.h"
 #include "app/single_instance.h"
@@ -62,12 +66,37 @@ int main(int argc, char *argv[]) {
     QWebEngineUrlScheme::registerScheme(walfile);
 
     QApplication app(argc, argv);
-    app.setApplicationName("wal-qt");
-    app.setApplicationVersion("0.1");
+    app.setApplicationName("wal-qt-host");
+    app.setApplicationVersion(QStringLiteral(WAL_QT_HOST_VERSION));
+
+    QCommandLineParser parser;
+    parser.addOption(QCommandLineOption(QStringList() << "version", "Print version and exit."));
+    parser.addOption(QCommandLineOption(QStringList() << "h" << "help", "Print help and exit."));
+    parser.process(app);
+
+    if (parser.isSet("version")) {
+        QTextStream out(stdout);
+        out << "wal-qt-host " << app.applicationVersion() << "\n";
+        return 0;
+    }
+    if (parser.isSet("help")) {
+        QTextStream out(stdout);
+        out << "Usage: wal-qt-host [--version] [-h|--help]\n"
+            << "\n"
+            << "Qt6 WebEngine Wayland wallpaper host for waypaper-engine.\n"
+            << "\n"
+            << "Options:\n"
+            << "  --version   Print version and exit.\n"
+            << "  -h, --help  Print this help and exit.\n"
+            << "\n"
+            << "Run with no arguments to start the host normally.\n"
+            << "See the README for details: https://github.com/0bCdian/wal-qt\n";
+        return 0;
+    }
 
     walqt::SingleInstance lock;
     if (!lock.acquire()) {
-        qCritical("Another wal-qt instance is already running");
+        qCritical("Another wal-qt-host instance is already running");
         return 1;
     }
 

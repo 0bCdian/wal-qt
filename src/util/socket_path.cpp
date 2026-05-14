@@ -6,5 +6,5 @@ static QString base() {
     return r.isEmpty() ? QDir::tempPath() : r;
 }
 QString socketPath() { return base() + "/wal-qt.sock"; }
-QString lockPath()   { return base() + "/wal-qt.lock"; }
+QString lockPath()   { return base() + "/wal-qt-host.lock"; }
 }
