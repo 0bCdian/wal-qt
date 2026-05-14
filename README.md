@@ -76,4 +76,4 @@ first, then regenerate with `make openapi`.
 - Built and tested on Arch Linux + Hyprland (multi-monitor, `v0.1.0-alpha`).
 
 ## License
-MIT.
+GPL-3.0-or-later. See [LICENSE](LICENSE).
