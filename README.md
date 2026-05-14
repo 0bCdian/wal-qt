@@ -1,51 +1,79 @@
 # wal-qt
 
-`wal-qt` is a Wayland wallpaper host process written in C++/Qt6 that places one full-screen `QWebEngineView` per physical output on the Wayland compositor's background layer via `zwlr_layer_shell_v1` (using LayerShellQt), and serves an HTTP control API over a Unix domain socket so the waypaper-engine Go daemon can drive it.
+Qt6 / WebEngine Wayland wallpaper host driven by an HTTP control socket. Ships
+two binaries: `wal-qt-host` (places a `QWebEngineView` per output on the
+layer-shell background) and `wal-qt` (CLI that controls it). Part of the
+[waypaper-engine](https://github.com/0bCdian/waypaper-engine) workspace.
 
-The authoritative spec lives in the `wal-qt.md` document maintained alongside this repo in the waypaper workspace. The bootstrap implementation plan is at `docs/superpowers/plans/2026-05-07-wal-qt-bootstrap.md`.
+## Dependencies
 
-## Build
+### Runtime
+- Wayland compositor implementing `zwlr_layer_shell_v1` (Hyprland, Sway, river,
+  Niri, Wayfire, …). **Does not run on GNOME.**
+- Qt 6 (Core, Gui, Widgets, WebEngineWidgets, WebChannel, Network)
+- LayerShellQt
+- PipeWire (`libpipewire-0.3`)
+- hicolor-icon-theme
 
-Convenience (runs dependency checks, `pnpm install --frozen-lockfile` in `renderer/` + renderer build, then CMake):
+### Build
+- CMake ≥ 3.16, C++17 compiler, pkg-config
+- Node.js 20+ and pnpm 11 (Corepack works)
+- Go ≥ 1.26 (for the CLI)
 
+Arch one-liner:
 ```sh
+sudo pacman -S --needed qt6-webengine qt6-webchannel layer-shell-qt pipewire \
+  hicolor-icon-theme cmake pkgconf nodejs pnpm go
+```
+
+## Install
+
+### AUR (recommended)
+```sh
+paru -S wal-qt        # stable
+paru -S wal-qt-git    # rolling
+```
+
+### From source
+```sh
+git clone https://github.com/0bCdian/wal-qt
+cd wal-qt
 make build
-make test
+sudo make install-system   # installs to /usr/local
+# — or —
+make install               # installs to ~/.local (ensure ~/.local/bin is on PATH)
 ```
 
-Or manually:
+Both binaries land in the same directory:
+- `wal-qt-host` — the Qt host process (renders wallpapers on every output).
+- `wal-qt` — the CLI that talks to it over the Unix socket.
+
+## Usage
+
+`wal-qt-host` is spawned automatically by `waypaper-engine`'s daemon — most
+users won't run it by hand. The `wal-qt` CLI is for inspection and manual
+control:
 
 ```sh
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-ctest --test-dir build --output-on-failure
+wal-qt health                 # is the host alive?
+wal-qt status                 # current wallpaper state (JSON)
+wal-qt query                  # monitors and their wallpapers, table view
+wal-qt load manifest.json     # set wallpapers from a manifest
+wal-qt load manifest.json --wait   # block until the wallpaper is applied
+wal-qt kill                   # SIGTERM the host
+wal-qt --help                 # all subcommands and flags
 ```
 
-Install to `~/.local` (binary + `.desktop`): `make install`. System-wide: `sudo make install-system` (uses `PREFIX=/usr/local`). See `make help`.
+Default socket: `$XDG_RUNTIME_DIR/wal-qt.sock`. Override with `--socket`.
 
-System packages (Arch): `qt6-webengine`, `qt6-webchannel`, `layer-shell-qt`, `pipewire`, `cmake`, `pkgconf`, `nodejs`. Install **`pnpm` 11** (or enable Corepack so `renderer/package.json`’s `"packageManager": "pnpm@11.1.1"` is honored). The renderer SPA must be built before the binary so its `dist/` is embedded as a Qt resource (`make renderer` or `cd renderer && pnpm install --frozen-lockfile && pnpm run build`).
+## HTTP control API
 
-## Using with waypaper-engine
+Documented in [`openapi/wal-qt.yaml`](openapi/wal-qt.yaml). The CLI and the
+`waypaper-engine` daemon are both generated from this spec — edit the spec
+first, then regenerate with `make openapi`.
 
-`waypaper-engine`'s daemon spawns `wal-qt` directly by name from `PATH` (see `daemon/internal/backend/walqt/walqt.go`).
+## Build matrix
+- Built and tested on Arch Linux + Hyprland (multi-monitor, `v0.1.0-alpha`).
 
-After `cmake --build build`, run:
-
-```sh
-./scripts/install-wal-qt.sh
-```
-
-That installs `~/.local/bin/wal-qt` as a symlink to `build/wal-qt`. Override the install directory with `WAL_QT_INSTALL_BIN_DIR`, or the source binary with the first argument or `WAL_QT_BINARY`.
-
-Manual equivalent:
-
-```sh
-ln -sfn /absolute/path/to/wal-qt/build/wal-qt ~/.local/bin/wal-qt
-```
-
-The daemon will then spawn `wal-qt` automatically, poll `/health` over `$XDG_RUNTIME_DIR/wal-qt.sock`, and send wallpaper commands. Stop any other `wal-qt` host first; delete stale `$XDG_RUNTIME_DIR/wal-qt.sock` and `wal-qt.lock` if the engine cannot bind.
-
-## Verified
-
-- Hyprland 0.x on Arch Linux (HDMI-A-1 + DP-1, layer-shell namespace `wal-qt-monitor-N`, image load via `POST /wallpaper/load wait_for_completion=true`, status, malicious-target rejection). Tagged `v0.1.0-alpha`.
-- End-to-end with `waypaper-engine`: use the symlink above, ensure `~/.local/bin` is on `PATH`, select the wal-qt backend in settings, then run the engine UI as usual.
+## License
+MIT.
