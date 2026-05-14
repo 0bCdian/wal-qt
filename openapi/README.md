@@ -38,5 +38,5 @@ spec change that affects the engine client.
 ## Validate
 
 ```sh
-npx @redocly/cli lint openapi/wal-qt.yaml
+pnpm dlx @redocly/cli lint openapi/wal-qt.yaml
 ```
