@@ -118,7 +118,7 @@ openapi:
 		--config=oapi-codegen.yaml \
 		../openapi/wal-qt.yaml
 
-openapi-check: openapi
+openapi-check: openapi openapi-coverage
 	@if ! git diff --exit-code -- cli/internal/client/client.gen.go openapi/wal-qt.yaml; then \
 		echo "" >&2; \
 		echo "openapi-check: generated client or spec drifted from committed files." >&2; \
@@ -126,6 +126,13 @@ openapi-check: openapi
 		exit 1; \
 	fi
 	@echo "openapi-check: ok (no drift)"
+
+# Asserts every JSON field the renderer (TS) and host (C++) read off a
+# LoadRequest is documented in the OpenAPI spec. Catches the silent-drop
+# regression where a missing spec field causes the engine's generated client
+# to omit it on the wire.
+openapi-coverage:
+	@python3 scripts/check-spec-coverage.py
 
 clean:
 	rm -rf $(BUILD_DIR)
