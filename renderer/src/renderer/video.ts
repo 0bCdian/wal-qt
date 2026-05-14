@@ -172,7 +172,8 @@ async function runVideoCrossfadeFromImage(
   const imgOut = dom.activeLayer;
   if (!imgOut) throw new Error("crossfade image→video: missing active <img>");
 
-  showVideoCover();
+  // Outgoing image stays visible while the inactive video slot buffers — no full-screen cover.
+  hideVideoCover();
   prepareInactiveLayer(incomingVideoSlot);
   incomingVideoSlot.loop = true;
   incomingVideoSlot.autoplay = true;
@@ -187,7 +188,6 @@ async function runVideoCrossfadeFromImage(
   const playingPromise = waitForPlaying(incomingVideoSlot, CANPLAY_TIMEOUT_MS);
   await incomingVideoSlot.play();
   await playingPromise;
-  hideVideoCover();
 
   clearVideoInlineAnimation(incomingVideoSlot);
   clearVideoInlineAnimation(activeVideoSlot);
@@ -230,7 +230,9 @@ async function runVideoCrossfadeToVideo(
   }
   const { intent, coerced } = resolved;
 
-  showVideoCover();
+  // Outgoing stays visible while incoming buffers; no full-screen cover (avoids black snap + uncover
+  // overlapping the opacity crossfade).
+  hideVideoCover();
   prepareInactiveLayer(incomingVideo);
   incomingVideo.loop = true;
   incomingVideo.autoplay = true;
@@ -245,7 +247,6 @@ async function runVideoCrossfadeToVideo(
   const playingPromise = waitForPlaying(incomingVideo, CANPLAY_TIMEOUT_MS);
   await incomingVideo.play();
   await playingPromise;
-  hideVideoCover();
 
   clearVideoInlineAnimation(incomingVideo);
   clearVideoInlineAnimation(outgoingVideo);
