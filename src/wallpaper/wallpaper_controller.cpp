@@ -16,6 +16,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLoggingCategory>
+#include <QRegularExpression>
 
 namespace walqt {
 
@@ -210,8 +211,14 @@ void WallpaperController::handleImagePresentation(const QJsonObject &req, HttpRe
     QString rend = req.value(QStringLiteral("image_rendering")).toString();
     if (rend.isEmpty())
         rend = QStringLiteral("auto");
+    QString fillColor = req.value(QStringLiteral("fill_color")).toString().trimmed();
+    if (fillColor.startsWith(QLatin1Char('#')))
+        fillColor = fillColor.mid(1);
+    static const QRegularExpression hexRe(QStringLiteral("^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"));
+    if (!hexRe.match(fillColor).hasMatch())
+        fillColor = QStringLiteral("000000ff");
     for (auto *w : windows_.values())
-        w->applyImagePresentation(fit, rend);
+        w->applyImagePresentation(fit, rend, fillColor);
     respond(200, R"({"ok":true})");
 }
 

@@ -438,6 +438,8 @@ export interface components {
         ImagePresentationBody: {
             image_fit_mode: components["schemas"]["ImageFitMode"];
             image_rendering: components["schemas"]["ImageRenderingMode"];
+            /** @description RRGGBB or RRGGBBAA hex (no leading '#'). Padding color when image does not fully cover the monitor. */
+            fill_color?: string;
         };
         ParallaxBody: {
             enabled?: boolean;

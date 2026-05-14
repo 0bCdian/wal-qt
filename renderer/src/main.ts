@@ -281,14 +281,31 @@ function handleParallax(payload: ParallaxPayload): void {
   applyParallax(payload);
 }
 
+function applyFillColor(raw: string | undefined): void {
+  if (!raw) return;
+  const hex = raw.trim().replace(/^#/, "");
+  if (!/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(hex)) {
+    return;
+  }
+  const color = `#${hex}`;
+  document.documentElement.style.setProperty("--wallpaper-base-color", color);
+  try {
+    window.localStorage.setItem("waypaper.baseColor", color);
+  } catch {
+    /* localStorage may be unavailable */
+  }
+}
+
 function handleImagePresentation(payload: {
   monitor_id: number;
   image_fit_mode: ImageFitMode;
   image_rendering: ImageRenderingMode;
+  fill_color?: string;
 }): void {
   if (payload.monitor_id !== state.monitorId) {
     return;
   }
+  applyFillColor(payload.fill_color);
   if (state.transitionInFlight) {
     if (deferredImagePresentation !== null) {
       deferredImagePresentationDropCount += 1;
@@ -313,6 +330,7 @@ function handleConfigPush(payload: unknown): void {
     monitor_id?: number;
     image_fit_mode?: ImageFitMode;
     image_rendering?: ImageRenderingMode;
+    fill_color?: string;
     properties?: Record<string, unknown>;
   };
 
@@ -321,6 +339,7 @@ function handleConfigPush(payload: unknown): void {
       monitor_id: typed.monitor_id,
       image_fit_mode: typed.image_fit_mode,
       image_rendering: typed.image_rendering,
+      fill_color: typed.fill_color,
     });
   }
 

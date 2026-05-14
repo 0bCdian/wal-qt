@@ -41,7 +41,8 @@ public:
     void pushWallpaperConfig(const QJsonObject &req);
     void pushCapabilities(const QJsonObject &req);
     void dispatchAudio(const QVector<float> &bands, float rms, float peak);
-    void applyImagePresentation(const QString &imageFitMode, const QString &imageRendering);
+    void applyImagePresentation(const QString &imageFitMode, const QString &imageRendering,
+                                const QString &fillColor);
 
     WallpaperBridge *bridge() const { return bridge_; }
 

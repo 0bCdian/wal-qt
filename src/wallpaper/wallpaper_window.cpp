@@ -479,12 +479,14 @@ void walqt::WallpaperWindow::pushCapabilities(const QJsonObject &req) {
 }
 
 void walqt::WallpaperWindow::applyImagePresentation(const QString &imageFitMode,
-                                                    const QString &imageRendering)
+                                                    const QString &imageRendering,
+                                                    const QString &fillColor)
 {
     QJsonObject o;
     o[QStringLiteral("monitor_id")] = monitorIndex_;
     o[QStringLiteral("image_fit_mode")] = imageFitMode;
     o[QStringLiteral("image_rendering")] = imageRendering;
+    o[QStringLiteral("fill_color")] = fillColor;
     emit bridge_->imagePresentation(
         QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact)));
 }
