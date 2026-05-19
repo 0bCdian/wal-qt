@@ -26,6 +26,19 @@ import { resetVideoRuntime, runVideoLoad } from "./renderer/video";
  */
 let generation = 0;
 
+/**
+ * Tail of the promise chain. Each handleLoad awaits this before mutating shared DOM /
+ * WebGL state, so a superseded run finishes its async teardown (handoff bitmap stash,
+ * GSAP kill, canvas hide) before the new run touches the same nodes. Latest-wins is
+ * preserved: requests arriving while we're waiting on this chain bump `generation`,
+ * and any intermediate runs see a stale gen after the await and return immediately.
+ *
+ * This is not the old queue — it's a serialization barrier. Abort happens inside one
+ * rAF (~16ms) so the user-visible delay is invisible; the new request's image decode
+ * already overlaps with that teardown.
+ */
+let inflight: Promise<void> = Promise.resolve();
+
 let deferredParallaxPayload: ParallaxPayload | null = null;
 let deferredParallaxDropCount = 0;
 
@@ -156,42 +169,56 @@ function flushDeferred(): void {
   }
 }
 
-async function handleLoad(req: LoadRequest): Promise<void> {
+function handleLoad(req: LoadRequest): Promise<void> {
   if (!req || req.monitor_id !== state.monitorId) {
-    return;
+    return Promise.resolve();
   }
 
   const myGeneration = ++generation;
-  const checkNotStale: LoadStaleCheck = () => {
-    if (generation !== myGeneration) {
-      throw new DOMException("Superseded by newer load", "AbortError");
-    }
-  };
+  const previous = inflight;
 
-  state.busy = true;
-  state.transitionInFlight = true;
-  try {
-    if (req.kind !== "web" && req.parallax?.enabled) {
-      applyParallaxBaselineForLoad(req.parallax);
-    }
-    await applyLoadRequest(req, checkNotStale);
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      // Superseded — newer handleLoad already running. Nothing to ack: the daemon
-      // already responded 202 Accepted to the original HTTP request.
+  const run = (async (): Promise<void> => {
+    // Wait for any prior run to finish its abort/teardown before we touch shared DOM /
+    // WebGL state. A superseded run bails on its next rAF tick (~16ms) but still has to
+    // unwind handoff-bitmap stash + canvas hide; overlapping that with the new run was
+    // the source of the stuck-mask / black-bar / z-snap artifacts.
+    await previous.catch(() => {});
+
+    // Intermediate request: an even newer load arrived while we were waiting. Drop ours.
+    if (generation !== myGeneration) {
       return;
     }
-    const message = error instanceof Error ? error.message : String(error);
-    logger.warn("transition failed", { requestId: req.request_id, error: message });
-  } finally {
-    // Only the latest generation owns the busy/in-flight flags and the deferred queues —
-    // a superseded run must not reset state mid-transition for its successor.
-    if (generation === myGeneration) {
-      state.transitionInFlight = false;
-      state.busy = false;
-      flushDeferred();
+
+    const checkNotStale: LoadStaleCheck = () => {
+      if (generation !== myGeneration) {
+        throw new DOMException("Superseded by newer load", "AbortError");
+      }
+    };
+
+    state.busy = true;
+    state.transitionInFlight = true;
+    try {
+      if (req.kind !== "web" && req.parallax?.enabled) {
+        applyParallaxBaselineForLoad(req.parallax);
+      }
+      await applyLoadRequest(req, checkNotStale);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn("transition failed", { requestId: req.request_id, error: message });
+    } finally {
+      if (generation === myGeneration) {
+        state.transitionInFlight = false;
+        state.busy = false;
+        flushDeferred();
+      }
     }
-  }
+  })();
+
+  inflight = run;
+  return run;
 }
 
 function handleParallax(payload: ParallaxPayload): void {
@@ -290,7 +317,9 @@ function handleCapsPush(_payload: unknown): void {}
 
 function connectBridge(): void {
   const b = window._walBridge!;
-  b.loadWallpaper.connect((j: string) => void handleLoad(JSON.parse(j) as LoadRequest));
+  b.loadWallpaper.connect((j: string) => {
+    void handleLoad(JSON.parse(j) as LoadRequest);
+  });
   b.setParallax.connect((j: string) => handleParallax(JSON.parse(j) as ParallaxPayload));
   b.setParallaxMove.connect((j: string) => handleParallaxMove(JSON.parse(j)));
   b.setPlaybackPolicy.connect((j: string) => handlePlaybackPolicy(JSON.parse(j)));
