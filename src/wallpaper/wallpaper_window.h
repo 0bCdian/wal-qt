@@ -3,7 +3,6 @@
 #include <QJsonObject>
 #include <QString>
 #include <QVector>
-#include <functional>
 
 class QWebEngineView;
 class QWebChannel;
@@ -31,9 +30,9 @@ public:
 
     void setGlobalNetworkEnabled(bool enabled);
 
-    // Returns immediately. For image/video, ack arrives via the bridge.
-    void loadContent(const QJsonObject &req,
-                     std::function<void(bool ok, QString err)> done);
+    // Fire-and-forget. Dispatches the request to the renderer (or navigates to a web package);
+    // supersede is handled inside the renderer via a generation counter.
+    void loadContent(const QJsonObject &req);
 
     void setParallax(const QJsonObject &req);
     void setParallaxMove(const QJsonObject &req);
@@ -52,9 +51,6 @@ public:
 signals:
     void audioReactiveChanged(int monitorIndex, bool active);
 
-private slots:
-    void onTransitionAck(int monitorId, bool ok, const QString &err);
-
 private:
     int monitorIndex_;
     QString screenName_;
@@ -66,8 +62,6 @@ private:
 
     QString currentTarget_;
     QString currentKind_;
-    QString pendingTarget_;
-    QString pendingKind_;
     bool currentManifestNetwork_ = false;
     bool globalNetworkEnabled_ = false;
     bool keyboard_ = false;
@@ -85,7 +79,6 @@ private:
     };
     ParallaxState parallaxState_;
 
-    std::function<void(bool, QString)> pendingDone_;
     // Set when an image/video load arrives while the view is on a web package URL.
     // Emitted to the bridge once the qrc renderer has reconnected (rendererConnected).
     QString pendingShellLoadJson_;
@@ -93,8 +86,7 @@ private:
     void setupLayerShell(QScreen *screen);
     void installBridgeAndUserScripts();
     void loadRendererShell();   // navigates to qrc:/renderer/index.html (Task 21 wires the resource)
-    void loadWebPackage(const QJsonObject &req,
-                        std::function<void(bool, QString)> done);
+    void loadWebPackage(const QJsonObject &req);
     void loadImageOrVideo(const QJsonObject &req);
     void applyEffectiveNetworkPolicy();
     void setKeyboardInteractivity(bool interactive);

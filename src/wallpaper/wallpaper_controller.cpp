@@ -2,14 +2,12 @@
 #include "wallpaper/monitor_selector.h"
 #include "wallpaper/wallpaper_window.h"
 #include "audio/audio_capture.h"
-#include "wallpaper/pending_load.h"
 #include "web/scheme_handler.h"
 #include "web/network_interceptor.h"
 #include "web/local_file_scheme_handler.h"
 
 #include <QGuiApplication>
 #include <QScreen>
-#include <QTimer>
 #include <QWebEngineProfile>
 #include <QWebEngineSettings>
 #include <QJsonArray>
@@ -147,26 +145,13 @@ void WallpaperController::handleLoad(const QJsonObject &req, HttpResponder respo
         return;
     }
 
-    bool wait = req.value("wait_for_completion").toBool(false);
-
-    if (!wait) {
-        respond(202, R"({"ok":true,"accepted":true})");
-        for (auto *w : targets)
-            w->loadContent(req, nullptr);
-        return;
-    }
-
-    auto pending = std::make_shared<PendingLoad>(
-        targets.size(),
-        [respond](int s, const QByteArray &b) { respond(s, b); });
-
-    for (auto *w : targets) {
-        w->loadContent(req, [pending](bool ok, QString err) {
-            pending->ack(ok, err);
-        });
-    }
-
-    QTimer::singleShot(30000, this, [pending] { pending->timeout(); });
+    // Fire-and-forget. The renderer handles supersede via a generation counter, so the
+    // daemon always gets an immediate accepted-ack — no completion handshake to mis-correlate
+    // when a new request arrives mid-transition. (`wait_for_completion` is accepted for
+    // backwards compatibility with the OpenAPI but is now a no-op.)
+    respond(202, R"({"ok":true,"accepted":true})");
+    for (auto *w : targets)
+        w->loadContent(req);
 }
 
 // ---------------------------------------------------------------------------

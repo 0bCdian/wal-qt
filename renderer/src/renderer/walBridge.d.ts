@@ -14,7 +14,6 @@ declare global {
     pushWallpaperConfig: QWebChannelSignal<string>;
     pushCapabilities: QWebChannelSignal<string>;
     imagePresentation: QWebChannelSignal<string>;
-    transitionResult: (json: string) => void;
     log: (level: string, msg: string) => void;
     rendererReady: () => void;
   }

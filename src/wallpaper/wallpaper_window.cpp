@@ -89,8 +89,6 @@ void walqt::WallpaperWindow::installBridgeAndUserScripts() {
     channel_ = new QWebChannel(view_->page());
     channel_->registerObject(QStringLiteral("walBridge"), bridge_);
     view_->page()->setWebChannel(channel_);
-    connect(bridge_, &WallpaperBridge::transitionAck,
-            this, &WallpaperWindow::onTransitionAck);
     // When the qrc renderer has reconnected, flush any image/video load that arrived
     // while we were navigated away to a web package.
     connect(bridge_, &WallpaperBridge::rendererConnected,
@@ -253,35 +251,28 @@ void walqt::WallpaperWindow::applyEffectiveNetworkPolicy() {
         interceptor_->setNetworkEnabled(globalNetworkEnabled_ && currentManifestNetwork_);
 }
 
-void walqt::WallpaperWindow::loadContent(const QJsonObject &req,
-                                         std::function<void(bool, QString)> done)
+void walqt::WallpaperWindow::loadContent(const QJsonObject &req)
 {
     const QJsonObject reqResolved = mergeLoadRequestTargetForScreen(req, screenName_);
 
-    // Cancel any in-flight ack (the new request supersedes it).
-    if (pendingDone_) {
-        auto stale = std::move(pendingDone_);
-        stale(false, QStringLiteral("superseded"));
-    }
-
     QString kind = reqResolved.value("kind").toString();
     if (kind == "web") {
-        loadWebPackage(reqResolved, std::move(done));
+        loadWebPackage(reqResolved);
     } else if (kind == "image" || kind == "video") {
-        pendingDone_ = std::move(done);
         loadImageOrVideo(reqResolved);
     } else {
-        if (done) done(false, QStringLiteral("unknown kind: ") + kind);
+        qWarning("WallpaperWindow::loadContent: unknown kind: %s",
+                 qUtf8Printable(kind));
     }
 }
 
-void walqt::WallpaperWindow::loadWebPackage(const QJsonObject &req,
-                                            std::function<void(bool, QString)> done)
+void walqt::WallpaperWindow::loadWebPackage(const QJsonObject &req)
 {
     QString target = req.value("target").toString();
     auto resolved = walqt::resolveWebTarget(target);
     if (resolved.packageRoot.isEmpty()) {
-        if (done) done(false, QStringLiteral("unresolved target: ") + target);
+        qWarning("WallpaperWindow::loadWebPackage: unresolved target: %s",
+                 qUtf8Printable(target));
         return;
     }
     if (schemeHandler_) schemeHandler_->setPackageRoot(resolved.packageRoot);
@@ -312,9 +303,6 @@ void walqt::WallpaperWindow::loadWebPackage(const QJsonObject &req,
         url.setQuery(q);
     }
     view_->load(url);
-
-    // Web kind: ack immediately (no JS transition handshake for navigation).
-    if (done) done(true, {});
 }
 
 void walqt::WallpaperWindow::loadImageOrVideo(const QJsonObject &req) {
@@ -325,12 +313,13 @@ void walqt::WallpaperWindow::loadImageOrVideo(const QJsonObject &req) {
     }
     if (keyboard_) setKeyboardInteractivity(false);
 
-    // Stash pending target/kind before emitting so onTransitionAck can commit them.
-    pendingTarget_ = req.value("target").toString();
-    pendingKind_   = req.value("kind").toString();
+    // Commit current target/kind optimistically. The renderer is the source of truth for
+    // what is on screen; this value is what /wallpaper/status reports.
+    currentTarget_ = req.value("target").toString();
+    currentKind_   = req.value("kind").toString();
 
     // Inject required renderer fields: monitor_id and a monotonic request_id.
-    // The renderer's executeLoadRequest filters on monitor_id and routes accordingly.
+    // request_id is still useful in renderer logs to correlate frames with requests.
     static int sRequestId = 0;
     QJsonObject enriched = req;
     enriched["monitor_id"]  = monitorIndex_;
@@ -356,20 +345,6 @@ void walqt::WallpaperWindow::loadImageOrVideo(const QJsonObject &req) {
     }
 
     emit bridge_->loadWallpaper(json);
-}
-
-void walqt::WallpaperWindow::onTransitionAck(int /*monitorId*/, bool ok, const QString &err) {
-    if (ok) {
-        currentTarget_ = pendingTarget_;
-        currentKind_   = pendingKind_;
-    }
-    pendingTarget_.clear();
-    pendingKind_.clear();
-
-    if (pendingDone_) {
-        auto cb = std::move(pendingDone_);
-        cb(ok, err);
-    }
 }
 
 void walqt::WallpaperWindow::setParallax(const QJsonObject &req) {

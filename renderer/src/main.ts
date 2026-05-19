@@ -1,5 +1,4 @@
 import { installInteractionGuards } from "./renderer/guards";
-import { emitTransitionAck, resolveNoopAck, type LoadAck } from "./renderer/loadPipeline";
 import {
   applyHostImagePresentation,
   normalizeMediaTarget,
@@ -16,15 +15,17 @@ import type {
   ImageRenderingMode,
   LoadRequest,
   ParallaxPayload,
-  TransitionExecutionMeta,
 } from "./renderer/types";
 import { resetVideoRuntime, runVideoLoad } from "./renderer/video";
 
-let activeLoadRequest: LoadRequest | null = null;
-let queuedLoadRequest: LoadRequest | null = null;
-let processingLoad = false;
-/** Bumped on each accepted loadWallpaper signal so in-flight work can abort when superseded. */
-let loadGeneration = 0;
+/**
+ * Latest-wins generation counter. Bumped on every accepted loadWallpaper signal; the
+ * in-flight transition checks it at every async boundary and bails when stale.
+ * No queue, no completion-ack — the daemon already responded 202 Accepted to the
+ * caller before we even see the request.
+ */
+let generation = 0;
+
 let deferredParallaxPayload: ParallaxPayload | null = null;
 let deferredParallaxDropCount = 0;
 
@@ -38,9 +39,6 @@ let deferredImagePresentationDropCount = 0;
 /** Wallhaven / web-package user properties (`wallpaperPropertyListener.applyUserProperties`). */
 let deferredWallpaperUserPropsQueue: unknown | null = null;
 let deferredWallpaperUserPropsDropCount = 0;
-
-/** Coalesce rapid loadWallpaper signals before starting work while idle (macrotask batches IPC). */
-let loadQueueFlushScheduled = false;
 
 function resolveMonitorId(): number {
   const fromQuery = Number.parseInt(
@@ -80,10 +78,7 @@ function applyWallpaperListenerUserProps(props: unknown): void {
   }
 }
 
-async function runImageTransition(
-  req: LoadRequest,
-  checkNotStale?: LoadStaleCheck,
-): Promise<TransitionExecutionMeta> {
+async function runImageTransition(req: LoadRequest, checkNotStale: LoadStaleCheck): Promise<void> {
   const presentation = {
     fitMode: req.image_fit_mode ?? "cover",
     rendering: req.image_rendering ?? "auto",
@@ -95,176 +90,108 @@ async function runImageTransition(
       activateImageMode();
       const result = await runTransition(req, checkNotStale);
       commitActiveMediaState("image", result.target, false, presentation);
-      return result.meta;
+      return;
     }
     const result = await runImageTransitionFromVideo(req, checkNotStale);
     resetVideoRuntime();
     activateImageMode();
     commitActiveMediaState("image", result.target, false, presentation);
-    return result.meta;
+    return;
   }
 
   resetVideoRuntime();
   activateImageMode();
   const result = await runTransition(req, checkNotStale);
   commitActiveMediaState("image", result.target, false, presentation);
-  return result.meta;
 }
 
-async function applyLoadRequest(
-  req: LoadRequest,
-  checkNotStale?: LoadStaleCheck,
-): Promise<TransitionExecutionMeta> {
-  const nonImageFallbackReason =
-    req.transition === "none" ? undefined : "non_image_transition_bypassed";
+async function applyLoadRequest(req: LoadRequest, checkNotStale: LoadStaleCheck): Promise<void> {
   if (req.kind === "web") {
     resetVideoRuntime();
     releaseWallpaperWebGlForIdle();
     activateImageMode();
     commitActiveMediaState("web", normalizeMediaTarget(req.target), false);
-    return {
-      engine: "none",
-      effect: "none",
-      duration_actual_ms: 0,
-      ...(nonImageFallbackReason ? { fallback_reason: nonImageFallbackReason } : {}),
-    };
+    return;
   }
   if (req.kind === "video") {
-    return runVideoLoad(req, checkNotStale);
+    await runVideoLoad(req, checkNotStale);
+    return;
   }
-  return runImageTransition(req, checkNotStale);
+  await runImageTransition(req, checkNotStale);
 }
 
-async function executeLoadRequest(req: LoadRequest) {
-  if (!req) return;
-  if (req.monitor_id !== state.monitorId) {
+function flushDeferred(): void {
+  if (deferredParallaxPayload) {
+    if (deferredParallaxDropCount > 0) {
+      logger.debug("deferred parallax payloads while transition in-flight", {
+        dropped: deferredParallaxDropCount,
+      });
+    }
+    const payload = deferredParallaxPayload;
+    deferredParallaxPayload = null;
+    deferredParallaxDropCount = 0;
+    applyParallax(payload);
+  }
+  if (deferredImagePresentation) {
+    if (deferredImagePresentationDropCount > 0) {
+      logger.debug("deferred image presentation while transition in-flight", {
+        dropped: deferredImagePresentationDropCount,
+      });
+    }
+    const pres = deferredImagePresentation;
+    deferredImagePresentation = null;
+    deferredImagePresentationDropCount = 0;
+    applyHostImagePresentation(pres.image_fit_mode, pres.image_rendering);
+  }
+  if (deferredWallpaperUserPropsQueue !== null) {
+    if (deferredWallpaperUserPropsDropCount > 0) {
+      logger.debug("deferred wallpaper user properties while transition in-flight", {
+        dropped: deferredWallpaperUserPropsDropCount,
+      });
+    }
+    const props = deferredWallpaperUserPropsQueue;
+    deferredWallpaperUserPropsQueue = null;
+    deferredWallpaperUserPropsDropCount = 0;
+    applyWallpaperListenerUserProps(props);
+  }
+}
+
+async function handleLoad(req: LoadRequest): Promise<void> {
+  if (!req || req.monitor_id !== state.monitorId) {
     return;
   }
 
-  const myGeneration = loadGeneration;
-  const checkNotStale: LoadStaleCheck | undefined = () => {
-    if (loadGeneration !== myGeneration) {
+  const myGeneration = ++generation;
+  const checkNotStale: LoadStaleCheck = () => {
+    if (generation !== myGeneration) {
       throw new DOMException("Superseded by newer load", "AbortError");
     }
   };
 
-  activeLoadRequest = req;
   state.busy = true;
   state.transitionInFlight = true;
-  const startedAt = performance.now();
-
-  let ack: LoadAck = { ok: true };
   try {
-    const noopMeta = resolveNoopAck(req);
-    if (noopMeta) {
-      ack.meta = noopMeta;
-      return;
-    }
-
     if (req.kind !== "web" && req.parallax?.enabled) {
       applyParallaxBaselineForLoad(req.parallax);
     }
-
-    ack.meta = await applyLoadRequest(req, checkNotStale);
+    await applyLoadRequest(req, checkNotStale);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      ack = { ok: false, error: "cancelled by newer request (latest-wins)" };
-    } else {
-      const message = error instanceof Error ? error.message : "unknown transition error";
-      ack = { ok: false, error: message };
+      // Superseded — newer handleLoad already running. Nothing to ack: the daemon
+      // already responded 202 Accepted to the original HTTP request.
+      return;
     }
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn("transition failed", { requestId: req.request_id, error: message });
   } finally {
-    const handlerElapsedMs = Math.round(performance.now() - startedAt);
-    emitTransitionAck(req, ack, handlerElapsedMs);
-    if (activeLoadRequest?.request_id === req.request_id) {
-      activeLoadRequest = null;
-    }
-    state.transitionInFlight = false;
-    state.busy = false;
-    if (deferredParallaxPayload) {
-      if (deferredParallaxDropCount > 0) {
-        logger.debug("deferred parallax payloads while transition in-flight", {
-          dropped: deferredParallaxDropCount,
-        });
-      }
-      const payload = deferredParallaxPayload;
-      deferredParallaxPayload = null;
-      deferredParallaxDropCount = 0;
-      applyParallax(payload);
-    }
-    if (deferredImagePresentation) {
-      if (deferredImagePresentationDropCount > 0) {
-        logger.debug("deferred image presentation while transition in-flight", {
-          dropped: deferredImagePresentationDropCount,
-        });
-      }
-      const pres = deferredImagePresentation;
-      deferredImagePresentation = null;
-      deferredImagePresentationDropCount = 0;
-      applyHostImagePresentation(pres.image_fit_mode, pres.image_rendering);
-    }
-    if (deferredWallpaperUserPropsQueue !== null) {
-      if (deferredWallpaperUserPropsDropCount > 0) {
-        logger.debug("deferred wallpaper user properties while transition in-flight", {
-          dropped: deferredWallpaperUserPropsDropCount,
-        });
-      }
-      const props = deferredWallpaperUserPropsQueue;
-      deferredWallpaperUserPropsQueue = null;
-      deferredWallpaperUserPropsDropCount = 0;
-      applyWallpaperListenerUserProps(props);
+    // Only the latest generation owns the busy/in-flight flags and the deferred queues —
+    // a superseded run must not reset state mid-transition for its successor.
+    if (generation === myGeneration) {
+      state.transitionInFlight = false;
+      state.busy = false;
+      flushDeferred();
     }
   }
-}
-
-function scheduleProcessLoadQueue(): void {
-  if (loadQueueFlushScheduled) {
-    return;
-  }
-  loadQueueFlushScheduled = true;
-  window.setTimeout(() => {
-    loadQueueFlushScheduled = false;
-    void processLoadQueue();
-  }, 0);
-}
-
-async function processLoadQueue(): Promise<void> {
-  if (processingLoad) {
-    return;
-  }
-  processingLoad = true;
-  try {
-    while (queuedLoadRequest) {
-      const next = queuedLoadRequest;
-      queuedLoadRequest = null;
-      await executeLoadRequest(next);
-    }
-  } finally {
-    processingLoad = false;
-  }
-}
-
-async function enqueueLoadRequest(req: LoadRequest): Promise<void> {
-  if (!req || req.monitor_id !== state.monitorId) {
-    return;
-  }
-  loadGeneration += 1;
-  const superseded = queuedLoadRequest;
-  queuedLoadRequest = req;
-  if (superseded && superseded.request_id !== req.request_id) {
-    emitTransitionAck(
-      superseded,
-      { ok: false, error: "cancelled by newer request (latest-wins)" },
-      0,
-    );
-  }
-  if (!processingLoad) {
-    scheduleProcessLoadQueue();
-  }
-}
-
-function handleLoad(req: LoadRequest): void {
-  void enqueueLoadRequest(req);
 }
 
 function handleParallax(payload: ParallaxPayload): void {
@@ -363,7 +290,7 @@ function handleCapsPush(_payload: unknown): void {}
 
 function connectBridge(): void {
   const b = window._walBridge!;
-  b.loadWallpaper.connect((j: string) => handleLoad(JSON.parse(j) as LoadRequest));
+  b.loadWallpaper.connect((j: string) => void handleLoad(JSON.parse(j) as LoadRequest));
   b.setParallax.connect((j: string) => handleParallax(JSON.parse(j) as ParallaxPayload));
   b.setParallaxMove.connect((j: string) => handleParallaxMove(JSON.parse(j)));
   b.setPlaybackPolicy.connect((j: string) => handlePlaybackPolicy(JSON.parse(j)));

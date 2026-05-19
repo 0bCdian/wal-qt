@@ -1,17 +1,8 @@
 #include "wallpaper/wallpaper_bridge.h"
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QLoggingCategory>
 
 walqt::WallpaperBridge::WallpaperBridge(int monitorId, QObject *parent)
     : QObject(parent), monitorId_(monitorId) {}
-
-void walqt::WallpaperBridge::transitionResult(const QString &json) {
-    QJsonObject result = QJsonDocument::fromJson(json.toUtf8()).object();
-    bool ok = result.value("ok").toBool(true);
-    QString err = result.value("error").toString();
-    emit transitionAck(monitorId_, ok, err);
-}
 
 void walqt::WallpaperBridge::rendererReady() {
     emit rendererConnected(monitorId_);
