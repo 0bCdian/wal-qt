@@ -12,9 +12,16 @@ const version = "0.1.0"
 var socketPath string
 
 var rootCmd = &cobra.Command{
-	Use:   "wal-qt",
+	Use:   "wal-qt [path]",
 	Short: "CLI client for the wal-qt Wayland wallpaper host",
 	Long: `wal-qt is a CLI for controlling wal-qt-host over its Unix socket API.
+
+Pass a path to set a wallpaper directly — kind is inferred from the file
+extension (image/video) or from a directory (web package):
+
+  wal-qt ~/Pictures/wall.jpg                 # clone to every monitor
+  wal-qt ~/Videos/loop.mp4 --monitors DP-1   # one monitor
+  wal-qt ~/wallpapers/clock --transition wipe
 
 The host process exposes an HTTP control socket at $XDG_RUNTIME_DIR/wal-qt.sock.
 Use --socket to override the path.`,

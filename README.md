@@ -72,6 +72,12 @@ Documented in [`openapi/wal-qt.yaml`](openapi/wal-qt.yaml). The CLI and the
 `waypaper-engine` daemon are both generated from this spec — edit the spec
 first, then regenerate with `make openapi`.
 
+## Web wallpaper packages (for authors / LLMs)
+
+See [`docs/LLM_WEB_WALLPAPER_GUIDE.md`](docs/LLM_WEB_WALLPAPER_GUIDE.md) for
+`waypaper.json`, audio-reactive and parallax events, and `wallpaper_config`
+consumption in HTML wallpapers.
+
 ## Build matrix
 - Built and tested on Arch Linux + Hyprland (multi-monitor, `v0.1.0-alpha`).
 

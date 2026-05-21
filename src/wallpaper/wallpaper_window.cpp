@@ -263,7 +263,18 @@ void walqt::WallpaperWindow::loadContent(const QJsonObject &req)
     } else {
         qWarning("WallpaperWindow::loadContent: unknown kind: %s",
                  qUtf8Printable(kind));
+        return;
     }
+
+    // Apply the parallax block carried by the load request. The daemon embeds it
+    // in every /wallpaper/load (daemon mapping.go buildParallaxRequestBody) and
+    // does not follow up with a separate POST /wallpaper/parallax. Without this,
+    // parallaxState_ stays disabled and setParallaxMove drops every workspace
+    // parallax-move. Applied after the kind-specific load so currentKind_ is set
+    // and dispatchParallaxState routes to the right surface.
+    const QJsonValue parallaxVal = reqResolved.value(QStringLiteral("parallax"));
+    if (parallaxVal.isObject())
+        setParallax(parallaxVal.toObject());
 }
 
 void walqt::WallpaperWindow::loadWebPackage(const QJsonObject &req)
@@ -313,6 +324,11 @@ void walqt::WallpaperWindow::loadImageOrVideo(const QJsonObject &req) {
     }
     if (keyboard_) setKeyboardInteractivity(false);
 
+    // Whether the view is currently navigated to a web package page (waypaperhtml://)
+    // rather than the qrc renderer shell. Must be sampled BEFORE the optimistic commit
+    // below overwrites currentKind_ — otherwise the web→image/video handoff is missed.
+    const bool viewOnWebPackage = (currentKind_ == QStringLiteral("web"));
+
     // Commit current target/kind optimistically. The renderer is the source of truth for
     // what is on screen; this value is what /wallpaper/status reports.
     currentTarget_ = req.value("target").toString();
@@ -332,14 +348,13 @@ void walqt::WallpaperWindow::loadImageOrVideo(const QJsonObject &req) {
 
     QString json = QString::fromUtf8(QJsonDocument(enriched).toJson(QJsonDocument::Compact));
 
-    if (currentKind_ == QStringLiteral("web")) {
+    if (viewOnWebPackage) {
         // The view is on a waypaperhtml:// page — the qrc renderer's bridge listeners
         // are gone. Stash the request, navigate back to the renderer shell, and let the
         // rendererConnected signal flush it once JS has reconnected to the bridge.
         pendingShellLoadJson_ = json;
         // Pointer events are not used during image/video transitions; reset to default.
         setPointerInteractive(false);
-        currentKind_.clear();
         loadRendererShell();
         return;
     }

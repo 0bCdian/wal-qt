@@ -54,30 +54,7 @@ acknowledges the transition (up to 30 s).`,
 			return fmt.Errorf("request failed: %w", err)
 		}
 
-		switch resp.StatusCode() {
-		case 200:
-			fmt.Fprintln(os.Stdout, "ok (completed)")
-		case 202:
-			fmt.Fprintln(os.Stdout, "accepted")
-		case 400:
-			if resp.JSON400 != nil {
-				return fmt.Errorf("error 400: %s", resp.JSON400.Error)
-			}
-			return fmt.Errorf("error 400: bad request")
-		case 404:
-			if resp.JSON404 != nil {
-				return fmt.Errorf("error 404: %s", resp.JSON404.Error)
-			}
-			return fmt.Errorf("error 404: no matching monitors")
-		case 504:
-			if resp.JSON504 != nil {
-				return fmt.Errorf("error 504: %s", resp.JSON504.Error)
-			}
-			return fmt.Errorf("error 504: wait-for-completion timed out")
-		default:
-			return fmt.Errorf("unexpected status %d", resp.StatusCode())
-		}
-		return nil
+		return reportLoadResponse(resp)
 	},
 }
 

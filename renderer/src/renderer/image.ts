@@ -763,12 +763,13 @@ function runGsapLayerTransition(
   outgoing: HTMLImageElement,
   easeSuffix: string,
   effectCropUv: EffectCropUv,
+  checkNotStale?: LoadStaleCheck,
 ): Promise<DomCompositorTransitionEngine> {
   const { effect } = intent;
   const guardMs = computeRendererGuardTimeoutMs(intent.durationMs);
 
   if (effect === "fade") {
-    return runFadeLayerCrossfade(intent, incoming, outgoing).then((b) =>
+    return runFadeLayerCrossfade(intent, incoming, outgoing, checkNotStale).then((b) =>
       b === "waapi" ? "waapi" : "css_fallback",
     );
   }
@@ -777,14 +778,53 @@ function runGsapLayerTransition(
     const ease = createIntentEase(intent, easeSuffix);
     const d = intent.durationMs / 1000;
 
+    let tl: gsap.core.Timeline | null = null;
+    let abortRaf = 0;
+    let settled = false;
+
+    const stopAbortPoll = () => {
+      if (abortRaf) {
+        cancelAnimationFrame(abortRaf);
+        abortRaf = 0;
+      }
+    };
+
     const guard = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      stopAbortPoll();
       gsap.killTweensOf([incoming, outgoing]);
+      tl?.kill();
       reject(new Error(`gsap transition timeout after ${guardMs}ms`));
     }, guardMs);
 
     const done = () => {
+      if (settled) return;
+      settled = true;
       window.clearTimeout(guard);
+      stopAbortPoll();
       resolve("gsap");
+    };
+
+    const fail = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(guard);
+      stopAbortPoll();
+      gsap.killTweensOf([incoming, outgoing]);
+      tl?.kill();
+      reject(err instanceof Error ? err : new Error(String(err)));
+    };
+
+    const pollAbort = () => {
+      if (settled || !checkNotStale) return;
+      try {
+        checkNotStale();
+      } catch (err) {
+        fail(err);
+        return;
+      }
+      abortRaf = requestAnimationFrame(pollAbort);
     };
 
     gsap.set([incoming, outgoing], { zIndex: 2 });
@@ -794,7 +834,7 @@ function runGsapLayerTransition(
         const wipeMag = 1.05 * wipeDomVectorScaleForCropDeg(intent.wipeAngleDeg, effectCropUv);
         const inStart = wipeVectorPercent(intent.wipeAngleDeg, false, wipeMag);
         const outEnd = wipeVectorPercent(intent.wipeAngleDeg, true, wipeMag);
-        const tl = gsap.timeline({ onComplete: done });
+        tl = gsap.timeline({ onComplete: done });
         tl.fromTo(
           incoming,
           { xPercent: inStart.x, yPercent: inStart.y, opacity: 1 },
@@ -811,7 +851,7 @@ function runGsapLayerTransition(
       }
       case "blur_through": {
         const blurPx = intent.blurRadiusPx;
-        const tl = gsap.timeline({ onComplete: done });
+        tl = gsap.timeline({ onComplete: done });
         tl.fromTo(
           outgoing,
           { filter: "blur(0px)", opacity: 1 },
@@ -827,8 +867,14 @@ function runGsapLayerTransition(
         break;
       }
       default:
+        settled = true;
         window.clearTimeout(guard);
         reject(new Error(`unexpected effect for gsap layer transition: ${String(effect)}`));
+        return;
+    }
+
+    if (checkNotStale) {
+      abortRaf = requestAnimationFrame(pollAbort);
     }
   });
 }
@@ -2546,6 +2592,7 @@ export async function runTransition(
           dom.activeLayer,
           `fb_${easeTag}`,
           transitionEffectCropUv,
+          checkNotStale,
         );
       } catch (fallbackErr) {
         const fb = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
@@ -2589,6 +2636,7 @@ export async function runTransition(
       dom.activeLayer,
       `img_${easeTag}`,
       transitionEffectCropUv,
+      checkNotStale,
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -2649,7 +2697,12 @@ export async function runImageTransitionFromVideo(
   }
   checkNotStale?.();
 
-  const backend = await runFadeLayerCrossfade(intent, dom.incomingLayer, dom.videoActiveLayer);
+  const backend = await runFadeLayerCrossfade(
+    intent,
+    dom.incomingLayer,
+    dom.videoActiveLayer,
+    checkNotStale,
+  );
   clearHTMLElementAnimationProps(dom.videoActiveLayer);
   commitFinalImage(normalizedTarget);
   releaseWallpaperWebGlForIdle();

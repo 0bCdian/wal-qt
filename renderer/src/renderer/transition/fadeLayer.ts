@@ -38,11 +38,17 @@ function waapiEasingFromBezier(cssCubicBezier: string): string {
  * Dual-layer opacity crossfade (same contract as &lt;img&gt; image↔image fade).
  * Prefers Web Animations API when available — reliable `finished` timing and avoids
  * `transitionend` quirks on Chromium. Falls back to CSS-transition + `transitionend` elsewhere.
+ *
+ * `checkNotStale`, when supplied, is polled every animation frame: if it throws
+ * (e.g. AbortError because a newer load superseded this one) the in-flight
+ * animation is killed immediately and the promise rejects with that error,
+ * instead of waiting for the natural duration to elapse.
  */
 export async function runFadeLayerCrossfade(
   intent: TransitionIntent,
   incoming: HTMLElement,
   outgoing: HTMLElement,
+  checkNotStale?: () => void,
 ): Promise<FadeCrossfadeBackend> {
   const [x1, y1, x2, y2] = intent.bezier;
   const durationMs = intent.durationMs;
@@ -75,28 +81,51 @@ export async function runFadeLayerCrossfade(
       let settled = false;
       let waapiIn: Animation | null = null;
       let waapiOut: Animation | null = null;
+      let abortRaf = 0;
+
+      const stopAbortPoll = () => {
+        if (abortRaf) {
+          cancelAnimationFrame(abortRaf);
+          abortRaf = 0;
+        }
+      };
 
       const finishOk = (backend: FadeCrossfadeBackend) => {
         if (settled) return;
         settled = true;
         browse().clearTimeout(guardTimer);
+        stopAbortPoll();
         waapiIn?.cancel();
         waapiOut?.cancel();
         cleanupRestStyles();
         resolve(backend);
       };
 
-      const finishErr = () => {
+      const finishErr = (err?: unknown) => {
         if (settled) return;
         settled = true;
         browse().clearTimeout(guardTimer);
+        stopAbortPoll();
         waapiIn?.cancel();
         waapiOut?.cancel();
         cleanupRestStyles();
-        reject(new Error(`fade transition timeout after ${guardMs}ms`));
+        reject(
+          err instanceof Error ? err : new Error(`fade transition timeout after ${guardMs}ms`),
+        );
       };
 
-      const guardTimer = browse().setTimeout(finishErr, guardMs);
+      const pollAbort = () => {
+        if (settled || !checkNotStale) return;
+        try {
+          checkNotStale();
+        } catch (err) {
+          finishErr(err);
+          return;
+        }
+        abortRaf = requestAnimationFrame(pollAbort);
+      };
+
+      const guardTimer = browse().setTimeout(() => finishErr(), guardMs);
 
       void settleTwoFrames(() => {
         if (settled) return;
@@ -111,9 +140,12 @@ export async function runFadeLayerCrossfade(
             easing,
             fill: "forwards",
           });
+          if (checkNotStale) {
+            abortRaf = requestAnimationFrame(pollAbort);
+          }
           void Promise.all([waapiIn.finished, waapiOut.finished])
             .then(() => finishOk("waapi"))
-            .catch(finishErr);
+            .catch(() => finishErr());
         } catch {
           finishErr();
         }
@@ -123,19 +155,41 @@ export async function runFadeLayerCrossfade(
 
   return new Promise((resolve, reject) => {
     let settled = false;
-    const settle = (backend: FadeCrossfadeBackend, ok: boolean) => {
+    let abortRaf = 0;
+    const stopAbortPoll = () => {
+      if (abortRaf) {
+        cancelAnimationFrame(abortRaf);
+        abortRaf = 0;
+      }
+    };
+    const settle = (backend: FadeCrossfadeBackend, ok: boolean, err?: unknown) => {
       if (settled) return;
       settled = true;
       browse().clearTimeout(guard);
+      stopAbortPoll();
       incoming.removeEventListener("transitionend", onEnd);
       cleanupRestStyles();
       if (ok) resolve(backend);
-      else reject(new Error(`fade transition timeout after ${guardMs}ms`));
+      else
+        reject(
+          err instanceof Error ? err : new Error(`fade transition timeout after ${guardMs}ms`),
+        );
     };
 
     const onEnd = (e: TransitionEvent): void => {
       if (e.target !== incoming || e.propertyName !== "opacity") return;
       settle("css", true);
+    };
+
+    const pollAbort = () => {
+      if (settled || !checkNotStale) return;
+      try {
+        checkNotStale();
+      } catch (err) {
+        settle("css", false, err);
+        return;
+      }
+      abortRaf = requestAnimationFrame(pollAbort);
     };
 
     const guard = browse().setTimeout(() => settle("css", false), guardMs);
@@ -146,6 +200,9 @@ export async function runFadeLayerCrossfade(
       outgoing.style.transition = `opacity ${durationMs}ms ${easeCss}`;
       incoming.style.opacity = "1";
       outgoing.style.opacity = "0";
+      if (checkNotStale) {
+        abortRaf = requestAnimationFrame(pollAbort);
+      }
     });
   });
 }
