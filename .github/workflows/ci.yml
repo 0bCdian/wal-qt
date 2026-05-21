@@ -22,7 +22,7 @@ jobs:
             qt6-base qt6-webengine qt6-webchannel \
             layer-shell-qt \
             pipewire \
-            nodejs \
+            nodejs corepack \
             go \
             python python-yaml \
             jq
@@ -30,8 +30,8 @@ jobs:
       - name: Mark workspace as safe for git
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Set up pnpm via Corepack
-        # renderer/package.json pins pnpm@11.1.1; Arch ships an older pnpm package,
-        # so we use Corepack (bundled with Node.js) to activate the pinned version.
+        # renderer/package.json pins pnpm@11.1.1; Arch's pnpm package is older, so
+        # we install the corepack package and activate the pinned version here.
         run: |
           corepack enable
           corepack prepare pnpm@11.1.1 --activate
