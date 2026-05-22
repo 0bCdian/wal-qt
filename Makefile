@@ -109,7 +109,7 @@ build-host: deps-check deps renderer
 	cmake --build $(BUILD_DIR) -j$(JOBS)
 
 build-cli: deps-check
-	cd cli && go build -o ../$(BUILD_DIR)/wal-qt ./
+	cd cli && go build -trimpath -ldflags="-s -w" -o ../$(BUILD_DIR)/wal-qt ./
 
 build: build-host build-cli
 
