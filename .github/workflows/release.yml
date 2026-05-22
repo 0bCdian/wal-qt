@@ -1,0 +1,113 @@
+name: Release
+
+# Continuous delivery: a pushed v* tag is validated, built, tested, and
+# published as a GitHub Release. Distribution is AUR-first, so no binary
+# artifacts are attached — the AUR package builds from the tag's source.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-tag:
+    name: Validate tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag commit must be on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag commit $GITHUB_SHA is not reachable from origin/main"
+            exit 1
+          fi
+          echo "Tag commit is on main."
+
+      - name: Tag must match CMakeLists.txt project version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          CMAKE_VERSION="$(grep -oP 'project\(wal-qt VERSION \K[0-9.]+' CMakeLists.txt)"
+          echo "Tag version:        $TAG"
+          echo "CMakeLists version: $CMAKE_VERSION"
+          if [ "$TAG" != "$CMAKE_VERSION" ]; then
+            echo "::error::Version mismatch: tag v$TAG != CMakeLists.txt $CMAKE_VERSION"
+            exit 1
+          fi
+
+  build-and-test:
+    name: Build & test
+    needs: validate-tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Install system packages
+        run: |
+          pacman -Syu --noconfirm \
+            base-devel git cmake pkgconf \
+            qt6-base qt6-webengine qt6-webchannel \
+            layer-shell-qt \
+            pipewire \
+            nodejs corepack \
+            go \
+            python python-yaml \
+            jq
+
+      - uses: actions/checkout@v4
+
+      - name: Mark workspace as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set up pnpm via Corepack
+        # renderer/package.json pins pnpm@11.1.1; Arch's pnpm package is older,
+        # so install the corepack package and activate the pinned version here.
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.1.1 --activate
+
+      - name: deps-check
+        run: make deps-check
+
+      - name: build
+        run: make build
+
+      - name: test
+        # test_health_contract uses QGuiApplication; the offscreen platform lets
+        # CTest run without a Wayland/X11 display server.
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: make test
+
+      - name: check
+        run: make check
+
+      - name: openapi-check
+        run: make openapi-check
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [validate-tag, build-and-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: wal-qt ${{ github.ref_name }}
+          generate_release_notes: true
